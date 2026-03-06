@@ -143,6 +143,10 @@ Each skill directory must contain a `SKILL.md` file — a markdown file with YAM
 
 For the full specification and a real-world example, see [Anthropic's skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) — the canonical reference for the Agent Skills format that craft builds on.
 
+## Acknowledgments
+
+craft was born out of working with [PAW (Phased Agent Workflow)](https://github.com/lossyrob/phased-agent-workflow) — a structured workflow system for AI coding agents. While extending PAW with new skills, the need for proper skill dependency management became clear, and craft is the result.
+
 ## License
 
 MIT
