@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,9 @@ import (
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
+	"github.com/erdemtuna/craft/internal/ui"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var installTarget string
@@ -35,10 +38,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
 
+	progress := ui.NewProgress()
+
 	// Parse manifest
 	m, err := manifest.ParseFile(filepath.Join(root, "craft.yaml"))
 	if err != nil {
-		return fmt.Errorf("reading craft.yaml: %w", err)
+		return fmt.Errorf("reading craft.yaml: %w\n  hint: run `craft init` to create one", err)
 	}
 
 	if len(m.Dependencies) == 0 {
@@ -65,13 +70,16 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	fetcher := fetch.NewGoGitFetcher(cache)
 
 	// Resolve dependencies
+	progress.Start("Resolving dependencies...")
 	resolver := resolve.NewResolver(fetcher)
 	result, err := resolver.Resolve(m, resolve.ResolveOptions{
 		ExistingPinfile: existingPinfile,
 	})
 	if err != nil {
+		progress.Fail("Resolution failed")
 		return fmt.Errorf("resolution failed: %w", err)
 	}
+	progress.Update(fmt.Sprintf("Resolved %d dependency(ies)", len(result.Resolved)))
 
 	// Write pinfile atomically
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
@@ -85,18 +93,30 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	// Collect skill files for installation
+	total := len(result.Resolved)
+	for i, dep := range result.Resolved {
+		progress.UpdateCount("Fetching dependency", i+1, total)
+		_ = dep
+	}
 	skillFiles, err := collectSkillFiles(fetcher, result)
 	if err != nil {
+		progress.Fail("Fetching failed")
 		return err
 	}
 
 	// Install
+	progress.Update("Installing skills...")
 	if err := installlib.Install(targetPath, skillFiles); err != nil {
+		progress.Fail("Installation failed")
 		return fmt.Errorf("installation failed: %w", err)
 	}
 
-	cmd.Printf("Resolved %d dependency(ies), installed %d skill(s) to %s\n",
-		len(result.Resolved), countSkills(result), targetPath)
+	skillCount := countSkills(result)
+	progress.Done(fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
+		skillCount, len(result.Resolved), targetPath))
+
+	// Print dependency tree to stderr
+	printDependencyTree(cmd, m, result)
 
 	return nil
 }
@@ -137,12 +157,93 @@ func resolveInstallTarget(target string) (string, error) {
 		return "", fmt.Errorf("determining home directory: %w", err)
 	}
 
+	// Try single-agent detection first
 	result, err := agent.Detect(home)
-	if err != nil {
-		return "", err
+	if err == nil {
+		return result.InstallPath, nil
 	}
 
-	return result.InstallPath, nil
+	// Check for multi-agent scenario
+	agents := agent.DetectAll(home)
+	if len(agents) == 0 {
+		return "", fmt.Errorf("no known AI agent detected\n  hint: use --target <path> to specify the installation directory")
+	}
+
+	// Multiple agents detected — prompt if stdin is TTY
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		names := make([]string, len(agents))
+		for i, a := range agents {
+			names[i] = a.Agent.String()
+		}
+		return "", fmt.Errorf("multiple AI agents detected (%s)\n  hint: use --target <path> to specify the installation directory",
+			strings.Join(names, ", "))
+	}
+
+	return promptAgentChoice(agents)
+}
+
+func promptAgentChoice(agents []agent.DetectResult) (string, error) {
+	fmt.Fprintf(os.Stderr, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
+	for i, a := range agents {
+		fmt.Fprintf(os.Stderr, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
+	}
+	fmt.Fprintf(os.Stderr, "  %d) Both\n", len(agents)+1)
+	fmt.Fprintf(os.Stderr, "\nChoice [1-%d]: ", len(agents)+1)
+
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return "", fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
+	}
+
+	choice := strings.TrimSpace(scanner.Text())
+
+	// "Both" selection — use first agent's path (install to both happens at caller level)
+	bothChoice := fmt.Sprintf("%d", len(agents)+1)
+	if choice == bothChoice {
+		// For "both", return a comma-separated list that the caller splits
+		paths := make([]string, len(agents))
+		for i, a := range agents {
+			paths[i] = a.InstallPath
+		}
+		return strings.Join(paths, ","), nil
+	}
+
+	// Parse numeric choice
+	var idx int
+	if _, err := fmt.Sscanf(choice, "%d", &idx); err != nil || idx < 1 || idx > len(agents) {
+		return "", fmt.Errorf("invalid choice %q\n  hint: enter a number from 1 to %d", choice, len(agents)+1)
+	}
+
+	return agents[idx-1].InstallPath, nil
+}
+
+// printDependencyTree prints a formatted dependency tree to stderr.
+func printDependencyTree(cmd *cobra.Command, m *manifest.Manifest, result *resolve.ResolveResult) {
+	packageName := m.Name
+	if m.Version != "" {
+		packageName += "@" + m.Version
+	}
+
+	// Extract local skill names from paths
+	var localSkills []string
+	for _, s := range m.Skills {
+		// Use the last path component as the display name
+		parts := strings.Split(strings.TrimRight(s, "/"), "/")
+		localSkills = append(localSkills, parts[len(parts)-1])
+	}
+
+	// Build dep nodes
+	var deps []ui.DepNode
+	for _, dep := range result.Resolved {
+		deps = append(deps, ui.DepNode{
+			Alias:  dep.Alias,
+			URL:    dep.URL,
+			Skills: dep.Skills,
+		})
+	}
+
+	fmt.Fprintln(cmd.ErrOrStderr())
+	ui.RenderTree(cmd.ErrOrStderr(), packageName, localSkills, deps)
 }
 
 func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) (map[string]map[string][]byte, error) {

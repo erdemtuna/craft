@@ -11,6 +11,7 @@ import (
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/erdemtuna/craft/internal/semver"
+	"github.com/erdemtuna/craft/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -34,10 +35,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
 
+	progress := ui.NewProgress()
+
 	manifestPath := filepath.Join(root, "craft.yaml")
 	m, err := manifest.ParseFile(manifestPath)
 	if err != nil {
-		return fmt.Errorf("reading craft.yaml: %w", err)
+		return fmt.Errorf("reading craft.yaml: %w\n  hint: run `craft init` to create one", err)
 	}
 
 	if len(m.Dependencies) == 0 {
@@ -61,11 +64,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		targetAlias = args[0]
 		if _, ok := m.Dependencies[targetAlias]; !ok {
-			return fmt.Errorf("dependency %q not found in craft.yaml", targetAlias)
+			return fmt.Errorf("dependency %q not found in craft.yaml\n  hint: available aliases: %s",
+				targetAlias, availableAliases(m.Dependencies))
 		}
 	}
 
 	// Find latest versions for targeted deps
+	progress.Start("Checking for updates...")
 	updated := false
 	for alias, depURL := range m.Dependencies {
 		if targetAlias != "" && alias != targetAlias {
@@ -81,7 +86,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 		tags, err := fetcher.ListTags(cloneURL)
 		if err != nil {
-			return fmt.Errorf("listing tags for %s: %w", depURL, err)
+			return fmt.Errorf("listing tags for %s: %w\n  hint: check your connection or set GITHUB_TOKEN for private repos", depURL, err)
 		}
 
 		latest := semver.FindLatest(tags)
@@ -99,7 +104,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if !updated {
-		cmd.Println("All dependencies are up to date.")
+		progress.Done("All dependencies are up to date.")
 		return nil
 	}
 
@@ -109,6 +114,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Now run install with the updated manifest (force re-resolve)
+	progress.Update("Resolving updated dependencies...")
 	forceResolve := make(map[string]bool)
 	for alias, depURL := range m.Dependencies {
 		if targetAlias == "" || alias == targetAlias {
@@ -129,6 +135,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		ForceResolve:    forceResolve,
 	})
 	if err != nil {
+		progress.Fail("Resolution failed")
 		return fmt.Errorf("resolution failed: %w", err)
 	}
 
@@ -137,6 +144,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Install
+	progress.Update("Installing skills...")
 	targetPath, err := resolveInstallTarget(updateTarget)
 	if err != nil {
 		return err
@@ -148,10 +156,15 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := installlib.Install(targetPath, skillFiles); err != nil {
+		progress.Fail("Installation failed")
 		return fmt.Errorf("installation failed: %w", err)
 	}
 
-	cmd.Printf("Updated and installed %d skill(s) to %s\n", countSkills(result), targetPath)
+	skillCount := countSkills(result)
+	progress.Done(fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, targetPath))
+
+	// Print dependency tree to stderr
+	printDependencyTree(cmd, m, result)
 
 	return nil
 }

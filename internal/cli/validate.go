@@ -33,7 +33,7 @@ var validateCmd = &cobra.Command{
 		for _, e := range result.Errors {
 			fmt.Fprintf(os.Stderr, "error: %s\n", e.Error())
 			if e.Suggestion != "" {
-				fmt.Fprintf(os.Stderr, "  fix: %s\n", e.Suggestion)
+				fmt.Fprintf(os.Stderr, "  hint: %s\n", e.Suggestion)
 			}
 		}
 

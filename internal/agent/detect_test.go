@@ -65,6 +65,46 @@ func TestDetectNoAgent(t *testing.T) {
 	}
 }
 
+func TestDetectAll_Multiple(t *testing.T) {
+	home := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
+	_ = os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
+
+	results := DetectAll(home)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 agents, got %d", len(results))
+	}
+
+	agents := map[Type]bool{}
+	for _, r := range results {
+		agents[r.Agent] = true
+	}
+	if !agents[ClaudeCode] || !agents[Copilot] {
+		t.Error("expected both ClaudeCode and Copilot")
+	}
+}
+
+func TestDetectAll_None(t *testing.T) {
+	home := t.TempDir()
+	results := DetectAll(home)
+	if len(results) != 0 {
+		t.Errorf("expected 0 agents, got %d", len(results))
+	}
+}
+
+func TestDetectAll_Single(t *testing.T) {
+	home := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
+
+	results := DetectAll(home)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(results))
+	}
+	if results[0].Agent != ClaudeCode {
+		t.Errorf("expected ClaudeCode, got %v", results[0].Agent)
+	}
+}
+
 func TestDetectFileNotDir(t *testing.T) {
 	home := t.TempDir()
 	// Create .claude as a file, not a directory
