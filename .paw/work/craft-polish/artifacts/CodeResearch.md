@@ -75,7 +75,7 @@ isTerminal := term.IsTerminal(int(os.Stderr.Fd()))
 | `internal/ui/tree.go` | Dependency tree renderer |
 | `internal/ui/progress_test.go` | Progress tests |
 | `internal/ui/tree_test.go` | Tree renderer tests |
-| `README.md` | Project documentation (replace existing minimal) |
+| `README.md` | Project documentation (expand existing 166-line README, not replace) |
 
 ## Files to Modify
 

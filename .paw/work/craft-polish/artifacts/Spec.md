@@ -31,7 +31,7 @@ Workflow 3 of 3 for craft (Agent Skills Package Manager). Adds the remaining two
 - Removes the dependency from `craft.yaml`
 - Removes the dependency's entry from `craft.pin.yaml` (if pinfile exists)
 - Identifies orphaned skills (skills only provided by the removed dependency, not by any remaining dependency)
-- Removes orphaned skill directories from the install target
+- Removes orphaned skill directories from the install target (uses `--target` flag or agent auto-detection, matching install/update behavior)
 - Prints summary: what was removed, which skills were cleaned up
 - If alias doesn't exist in `craft.yaml`, error with available aliases listed
 - Handles transitive deps: only removes skills that are truly orphaned (not needed by other remaining deps)
@@ -88,7 +88,7 @@ Workflow 3 of 3 for craft (Agent Skills Package Manager). Adds the remaining two
 **So that** I can fix issues without reading documentation.
 
 **Acceptance Criteria:**
-- All errors follow pattern: `error: <what happened>\n  hint: <what to do>`
+- All errors follow pattern: `error: <what happened>\n  hint: <what to do>` (migrates existing `fix:` keyword in validate.go to `hint:` for consistency)
 - Missing `craft.yaml` → "Run `craft init` to create one"
 - Repository not found → "Check the URL or set GITHUB_TOKEN for private repos"
 - No skills found in dependency → "Ensure the repo has SKILL.md files"
@@ -133,7 +133,7 @@ Workflow 3 of 3 for craft (Agent Skills Package Manager). Adds the remaining two
 |----|-------------|
 | NFR-1 | Progress output goes to stderr; data output to stdout |
 | NFR-2 | No progress/color when stderr is not a TTY (CI-friendly) |
-| NFR-3 | No new external dependencies for progress UI (use stdlib) |
+| NFR-3 | No new external dependencies for progress UI rendering (use stdlib ANSI codes). `golang.org/x/term` promoted from transitive to direct for TTY detection. |
 | NFR-4 | All new code has unit tests |
 | NFR-5 | Existing tests continue to pass |
 
