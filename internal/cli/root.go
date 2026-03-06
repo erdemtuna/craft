@@ -19,6 +19,9 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(installCmd)
+	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(cacheCmd)
 }
 
 // Execute runs the root command.

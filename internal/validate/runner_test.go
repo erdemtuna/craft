@@ -193,10 +193,14 @@ version: 1.0.0
 skills:
   - ./skills/cyclic
 `
-	os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644)
+	if err := os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	skillDir := filepath.Join(root, "skills", "cyclic")
-	os.MkdirAll(skillDir, 0o755)
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a symlink cycle: cyclic/loop -> cyclic
 	err := os.Symlink(skillDir, filepath.Join(skillDir, "loop"))
@@ -205,7 +209,9 @@ skills:
 	}
 
 	// Create a SKILL.md so the directory is recognized
-	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: cyclic\ndescription: A cyclic symlink test skill.\n---\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: cyclic\ndescription: A cyclic symlink test skill.\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	runner := NewRunner(root)
 	result := runner.Run()
@@ -279,8 +285,12 @@ func TestDuplicateSkillPath(t *testing.T) {
 
 	// Create a skill directory
 	skillDir := filepath.Join(root, "skills", "my-skill")
-	os.MkdirAll(skillDir, 0o755)
-	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: my-skill\ndescription: A test skill.\n---\n"), 0o644)
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: my-skill\ndescription: A test skill.\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a manifest with duplicate paths
 	manifestContent := `schema_version: 1
@@ -290,7 +300,9 @@ skills:
   - ./skills/my-skill
   - ./skills/my-skill
 `
-	os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644)
+	if err := os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	runner := NewRunner(root)
 	result := runner.Run()

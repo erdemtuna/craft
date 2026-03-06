@@ -30,7 +30,7 @@ func ParseFile(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening manifest file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return Parse(f)
 }

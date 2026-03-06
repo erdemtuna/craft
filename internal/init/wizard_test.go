@@ -119,7 +119,9 @@ func TestWizardOverwriteDecline(t *testing.T) {
 
 	// Create existing craft.yaml
 	existing := filepath.Join(root, "craft.yaml")
-	os.WriteFile(existing, []byte("existing content"), 0o644)
+	if err := os.WriteFile(existing, []byte("existing content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Decline overwrite
 	input := "n\n"
@@ -148,7 +150,9 @@ func TestWizardOverwriteAccept(t *testing.T) {
 	root := t.TempDir()
 
 	// Create existing craft.yaml
-	os.WriteFile(filepath.Join(root, "craft.yaml"), []byte("old"), 0o644)
+	if err := os.WriteFile(filepath.Join(root, "craft.yaml"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Accept overwrite, then provide values
 	input := "y\nnew-pkg\n1.0.0\n\n\n"

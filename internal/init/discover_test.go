@@ -17,8 +17,8 @@ func TestDiscoverSkills(t *testing.T) {
 	createSkillDir(t, root, "deep/nested/skill")
 
 	// Create non-skill directories
-	os.MkdirAll(filepath.Join(root, "src/utils"), 0o755)
-	os.MkdirAll(filepath.Join(root, "docs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(root, "src/utils"), 0o755)
+	_ = os.MkdirAll(filepath.Join(root, "docs"), 0o755)
 
 	skills, err := DiscoverSkills(root)
 	if err != nil {

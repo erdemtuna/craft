@@ -274,7 +274,11 @@ func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) {
 	}
 
 	// Each pinfile entry should have a manifest dependency
-	for url := range p.Resolved {
+	// (transitive entries with a Source field are exempt)
+	for url, entry := range p.Resolved {
+		if entry.Source != "" {
+			continue // transitive dependency — not expected in manifest
+		}
 		if !depURLs[url] {
 			result.Errors = append(result.Errors, &Error{
 				Category:   CategoryPinfile,

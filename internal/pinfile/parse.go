@@ -29,7 +29,7 @@ func ParseFile(path string) (*Pinfile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening pinfile: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return Parse(f)
 }

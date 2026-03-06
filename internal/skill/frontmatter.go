@@ -51,7 +51,7 @@ func ParseFrontmatterFile(path string) (*Frontmatter, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return ParseFrontmatter(f)
 }

@@ -53,13 +53,13 @@ func (w *Wizard) Run() error {
 	// Check for existing craft.yaml
 	manifestPath := filepath.Join(w.Root, "craft.yaml")
 	if _, err := os.Stat(manifestPath); err == nil {
-		fmt.Fprintln(w.Out, "A craft.yaml already exists in this directory.")
+		_, _ = fmt.Fprintln(w.Out, "A craft.yaml already exists in this directory.")
 		overwrite, err := w.promptYesNo(scanner, "Overwrite?", false)
 		if err != nil {
 			return err
 		}
 		if !overwrite {
-			fmt.Fprintln(w.Out, "Aborted.")
+			_, _ = fmt.Fprintln(w.Out, "Aborted.")
 			return nil
 		}
 	}
@@ -67,8 +67,8 @@ func (w *Wizard) Run() error {
 	// Infer defaults
 	defaultName := inferPackageName(w.Root)
 
-	fmt.Fprintln(w.Out, "Initializing a new craft package...")
-	fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintln(w.Out, "Initializing a new craft package...")
+	_, _ = fmt.Fprintln(w.Out)
 
 	// Prompt for name
 	name, err := w.promptValidated(scanner, fmt.Sprintf("Package name (%s)", defaultName), defaultName, validateName)
@@ -95,22 +95,22 @@ func (w *Wizard) Run() error {
 	}
 
 	// Auto-discover skills
-	fmt.Fprintln(w.Out)
-	fmt.Fprintln(w.Out, "Discovering skill directories...")
+	_, _ = fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintln(w.Out, "Discovering skill directories...")
 
 	skills, err := DiscoverSkills(w.Root)
 	if err != nil {
-		fmt.Fprintf(w.ErrOut, "warning: error during skill discovery: %v\n", err)
+		_, _ = fmt.Fprintf(w.ErrOut, "warning: error during skill discovery: %v\n", err)
 		skills = nil
 	}
 
 	if len(skills) > 0 {
-		fmt.Fprintf(w.Out, "Found %d skill(s):\n", len(skills))
+		_, _ = fmt.Fprintf(w.Out, "Found %d skill(s):\n", len(skills))
 		for _, s := range skills {
-			fmt.Fprintf(w.Out, "  %s\n", s)
+			_, _ = fmt.Fprintf(w.Out, "  %s\n", s)
 		}
 	} else {
-		fmt.Fprintln(w.Out, "No skill directories found.")
+		_, _ = fmt.Fprintln(w.Out, "No skill directories found.")
 		skills = []string{}
 	}
 
@@ -132,23 +132,23 @@ func (w *Wizard) Run() error {
 	}
 
 	if err := manifest.Write(m, f); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, manifestPath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("saving craft.yaml: %w", err)
 	}
 
-	fmt.Fprintln(w.Out)
-	fmt.Fprintf(w.Out, "Created craft.yaml for package %q (%s)\n", name, version)
+	_, _ = fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintf(w.Out, "Created craft.yaml for package %q (%s)\n", name, version)
 
 	return nil
 }
@@ -156,7 +156,7 @@ func (w *Wizard) Run() error {
 // prompt displays a prompt and returns the user's input or the default value.
 // The returned bool is true when the default was returned due to EOF (no more input available).
 func (w *Wizard) prompt(scanner *bufio.Scanner, label, defaultVal string) (string, bool, error) {
-	fmt.Fprintf(w.Out, "%s: ", label)
+	_, _ = fmt.Fprintf(w.Out, "%s: ", label)
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
@@ -185,7 +185,7 @@ func (w *Wizard) promptValidated(scanner *bufio.Scanner, label, defaultVal strin
 			if eof {
 				return "", fmt.Errorf("reached end of input with invalid default %q: %w", defaultVal, verr)
 			}
-			fmt.Fprintf(w.ErrOut, "  invalid: %v\n", verr)
+			_, _ = fmt.Fprintf(w.ErrOut, "  invalid: %v\n", verr)
 			continue
 		}
 
@@ -202,7 +202,7 @@ func (w *Wizard) promptYesNo(scanner *bufio.Scanner, label string, defaultVal bo
 	}
 
 	for {
-		fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
+		_, _ = fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
 
 		if !scanner.Scan() {
 			return defaultVal, scanner.Err()
@@ -217,7 +217,7 @@ func (w *Wizard) promptYesNo(scanner *bufio.Scanner, label string, defaultVal bo
 		case "":
 			return defaultVal, nil
 		default:
-			fmt.Fprintln(w.ErrOut, "  Please answer y or n.")
+			_, _ = fmt.Fprintln(w.ErrOut, "  Please answer y or n.")
 		}
 	}
 }
