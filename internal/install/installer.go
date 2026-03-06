@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Install copies skill files to the target directory as <target>/<skill-name>/.
@@ -14,8 +15,20 @@ func Install(target string, skills map[string]map[string][]byte) error {
 		return fmt.Errorf("creating target directory: %w", err)
 	}
 
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return fmt.Errorf("resolving target path: %w", err)
+	}
+
 	for skillName, files := range skills {
 		skillDir := filepath.Join(target, skillName)
+		absSkillDir, err := filepath.Abs(skillDir)
+		if err != nil {
+			return fmt.Errorf("resolving skill path: %w", err)
+		}
+		if !strings.HasPrefix(absSkillDir, absTarget+string(filepath.Separator)) {
+			return fmt.Errorf("skill name %q escapes target directory", skillName)
+		}
 
 		// Remove existing skill directory (overwrite)
 		if err := os.RemoveAll(skillDir); err != nil {
@@ -28,6 +41,13 @@ func Install(target string, skills map[string]map[string][]byte) error {
 
 		for relPath, content := range files {
 			fullPath := filepath.Join(skillDir, relPath)
+			absFullPath, err := filepath.Abs(fullPath)
+			if err != nil {
+				return fmt.Errorf("resolving file path: %w", err)
+			}
+			if !strings.HasPrefix(absFullPath, absSkillDir+string(filepath.Separator)) {
+				return fmt.Errorf("file path %q escapes skill directory", relPath)
+			}
 
 			if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 				return fmt.Errorf("creating directory for %q: %w", relPath, err)

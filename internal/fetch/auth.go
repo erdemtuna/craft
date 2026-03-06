@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -10,21 +11,44 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
+// gitHubHosts lists hosts where GITHUB_TOKEN may be sent.
+var gitHubHosts = []string{"github.com"}
+
+// isGitHubHost returns true if the URL points to a known GitHub host.
+func isGitHubHost(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	for _, h := range gitHubHosts {
+		if host == h {
+			return true
+		}
+	}
+	return false
+}
+
 // Auth resolves authentication for git operations.
 // Checks environment tokens first (CRAFT_TOKEN > GITHUB_TOKEN),
 // then falls back to SSH agent.
 //
+// CRAFT_TOKEN is sent to any host (user explicitly configured it for craft).
+// GITHUB_TOKEN is only sent to known GitHub hosts to prevent token leakage
+// to untrusted third-party servers via transitive dependencies.
+//
 // Returns nil auth (anonymous) if no credentials are found — the caller
 // should attempt the operation and wrap any auth errors with suggestions.
 func Auth(url string) transport.AuthMethod {
-	// Token auth via HTTPS
+	// CRAFT_TOKEN: universal, sent to any host
 	if token := os.Getenv("CRAFT_TOKEN"); token != "" {
 		return &http.BasicAuth{
 			Username: "x-access-token",
 			Password: token,
 		}
 	}
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+	// GITHUB_TOKEN: scoped to GitHub hosts only
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" && isGitHubHost(url) {
 		return &http.BasicAuth{
 			Username: "x-access-token",
 			Password: token,

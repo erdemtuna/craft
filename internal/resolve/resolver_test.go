@@ -267,3 +267,89 @@ func TestCompareSemver(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveMVSTransitiveDepsReCollection(t *testing.T) {
+	mock := newTestFetcher()
+
+	aClone := "https://github.com/org/a.git"
+	bClone := "https://github.com/org/b.git"
+	cClone := "https://github.com/org/c.git"
+	dClone := "https://github.com/org/d.git"
+
+	// A@v1.0.0 depends on C@v1.0.0
+	mock.Refs[aClone+":v1.0.0"] = "aaa"
+	mock.Trees[aClone+":aaa"] = []string{"skills/a-skill/SKILL.md"}
+	mock.Files[aClone+":aaa:skills/a-skill/SKILL.md"] = []byte("---\nname: a-skill\n---\n")
+	mock.Files[aClone+":aaa:craft.yaml"] = []byte("schema_version: 1\nname: a\nversion: 1.0.0\nskills:\n  - ./skills/a-skill\ndependencies:\n  c: github.com/org/c@v1.0.0\n")
+
+	// B@v1.0.0 depends on C@v2.0.0
+	mock.Refs[bClone+":v1.0.0"] = "bbb"
+	mock.Trees[bClone+":bbb"] = []string{"skills/b-skill/SKILL.md"}
+	mock.Files[bClone+":bbb:skills/b-skill/SKILL.md"] = []byte("---\nname: b-skill\n---\n")
+	mock.Files[bClone+":bbb:craft.yaml"] = []byte("schema_version: 1\nname: b\nversion: 1.0.0\nskills:\n  - ./skills/b-skill\ndependencies:\n  c: github.com/org/c@v2.0.0\n")
+
+	// C@v1.0.0 has no transitive deps (no craft.yaml)
+	mock.Refs[cClone+":v1.0.0"] = "c100"
+	mock.Trees[cClone+":c100"] = []string{"skills/c-skill/SKILL.md"}
+	mock.Files[cClone+":c100:skills/c-skill/SKILL.md"] = []byte("---\nname: c-skill\n---\n")
+
+	// C@v2.0.0 depends on D@v1.0.0
+	mock.Refs[cClone+":v2.0.0"] = "c200"
+	mock.Trees[cClone+":c200"] = []string{"skills/c-skill/SKILL.md"}
+	mock.Files[cClone+":c200:skills/c-skill/SKILL.md"] = []byte("---\nname: c-skill\n---\n")
+	mock.Files[cClone+":c200:craft.yaml"] = []byte("schema_version: 1\nname: c\nversion: 2.0.0\nskills:\n  - ./skills/c-skill\ndependencies:\n  d: github.com/org/d@v1.0.0\n")
+
+	// D@v1.0.0 has no transitive deps
+	mock.Refs[dClone+":v1.0.0"] = "ddd"
+	mock.Trees[dClone+":ddd"] = []string{"skills/d-skill/SKILL.md"}
+	mock.Files[dClone+":ddd:skills/d-skill/SKILL.md"] = []byte("---\nname: d-skill\n---\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name: "root",
+		Dependencies: map[string]string{
+			"a": "github.com/org/a@v1.0.0",
+			"b": "github.com/org/b@v1.0.0",
+		},
+	}
+
+	result, err := resolver.Resolve(m, ResolveOptions{})
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+
+	// Should have A, B, C (MVS selects v2.0.0), and D
+	if len(result.Resolved) != 4 {
+		var urls []string
+		for _, d := range result.Resolved {
+			urls = append(urls, d.URL)
+		}
+		t.Fatalf("Expected 4 resolved deps, got %d: %v", len(result.Resolved), urls)
+	}
+
+	// Verify D@v1.0.0 is in the resolved set
+	foundD := false
+	for _, dep := range result.Resolved {
+		if strings.Contains(dep.URL, "github.com/org/d") {
+			foundD = true
+			if dep.Commit != "ddd" {
+				t.Errorf("D should have commit ddd, got %q", dep.Commit)
+			}
+			if !strings.Contains(dep.URL, "v1.0.0") {
+				t.Errorf("D should be v1.0.0, got URL %q", dep.URL)
+			}
+		}
+	}
+	if !foundD {
+		t.Error("D@v1.0.0 should be in resolved set (transitive dep of C@v2.0.0)")
+	}
+
+	// Verify C is v2.0.0 (MVS selected)
+	for _, dep := range result.Resolved {
+		if strings.Contains(dep.URL, "github.com/org/c") {
+			if dep.Commit != "c200" {
+				t.Errorf("MVS should select C@v2.0.0 (commit c200), got commit %q", dep.Commit)
+			}
+		}
+	}
+}

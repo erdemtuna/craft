@@ -54,7 +54,8 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 	graph := NewGraph()
 	rootID := m.Name
 
-	allDeps, err := r.collectDeps(m, rootID, "", graph, opts, make(map[string]bool))
+	visited := make(map[string]string) // identity → version first visited
+	allDeps, err := r.collectDeps(m, rootID, "", graph, opts, visited)
 	if err != nil {
 		return nil, err
 	}
@@ -64,29 +65,97 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 		return nil, fmt.Errorf("%s", FormatCycle(cycle))
 	}
 
-	// Phase 3: MVS — group by package identity, select highest version
-	byIdentity := make(map[string][]ResolvedDep)
-	for _, dep := range allDeps {
-		parsed, err := ParseDepURL(dep.URL)
-		if err != nil {
-			return nil, err
+	// Phase 3: MVS — group by package identity, select highest version.
+	// After selection, re-collect transitive deps for any package where
+	// MVS selected a version different from the one first visited.
+	var selected map[string]ResolvedDep
+	for {
+		byIdentity := make(map[string][]ResolvedDep)
+		for _, dep := range allDeps {
+			parsed, err := ParseDepURL(dep.URL)
+			if err != nil {
+				return nil, err
+			}
+			identity := parsed.PackageIdentity()
+			byIdentity[identity] = append(byIdentity[identity], dep)
 		}
-		identity := parsed.PackageIdentity()
-		byIdentity[identity] = append(byIdentity[identity], dep)
-	}
 
-	selected := make(map[string]ResolvedDep)
-	for identity, deps := range byIdentity {
-		best := deps[0]
-		bestParsed, _ := ParseDepURL(best.URL)
-		for _, dep := range deps[1:] {
+		selected = make(map[string]ResolvedDep)
+		for identity, deps := range byIdentity {
+			best := deps[0]
+			bestParsed, _ := ParseDepURL(best.URL)
+			for _, dep := range deps[1:] {
+				parsed, _ := ParseDepURL(dep.URL)
+				if compareSemver(parsed.Version, bestParsed.Version) > 0 {
+					best = dep
+					bestParsed = parsed
+				}
+			}
+			// Prefer direct dep metadata (Source == "") when available
+			for _, dep := range deps {
+				depParsed, _ := ParseDepURL(dep.URL)
+				if depParsed.Version == bestParsed.Version && dep.Source == "" {
+					best.Alias = dep.Alias
+					best.Source = dep.Source
+					break
+				}
+			}
+			selected[identity] = best
+		}
+
+		// Re-collect transitive deps for packages where MVS selected
+		// a different version than what was first visited.
+		changed := false
+		for identity, dep := range selected {
 			parsed, _ := ParseDepURL(dep.URL)
-			if compareSemver(parsed.Version, bestParsed.Version) > 0 {
-				best = dep
-				bestParsed = parsed
+			visitedVersion, ok := visited[identity]
+			if !ok || visitedVersion == parsed.Version {
+				continue
+			}
+
+			cloneURL := fetch.NormalizeCloneURL(identity)
+			commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+			if err != nil {
+				return nil, fmt.Errorf("resolving %s: %w", dep.URL, err)
+			}
+
+			visited[identity] = parsed.Version
+
+			files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
+			if err != nil {
+				continue
+			}
+
+			craftYAML, ok := files["craft.yaml"]
+			if !ok {
+				continue
+			}
+
+			depManifest, err := manifest.Parse(bytes.NewReader(craftYAML))
+			if err != nil {
+				continue
+			}
+
+			if len(depManifest.Dependencies) > 0 {
+				transitive, err := r.collectDeps(depManifest, identity, dep.URL, graph, opts, visited)
+				if err != nil {
+					return nil, err
+				}
+				if len(transitive) > 0 {
+					allDeps = append(allDeps, transitive...)
+					changed = true
+				}
 			}
 		}
-		selected[identity] = best
+
+		if !changed {
+			break
+		}
+	}
+
+	// Re-check for cycles after potential graph modifications
+	if cycle := graph.DetectCycles(); cycle != nil {
+		return nil, fmt.Errorf("%s", FormatCycle(cycle))
 	}
 
 	// Phase 4: Resolve commit SHAs, discover skills, compute integrity
@@ -127,7 +196,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 }
 
 // collectDeps recursively collects all dependency requirements.
-func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, graph *Graph, opts ResolveOptions, visited map[string]bool) ([]ResolvedDep, error) {
+func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, graph *Graph, opts ResolveOptions, visited map[string]string) ([]ResolvedDep, error) {
 	var allDeps []ResolvedDep
 
 	for alias, depURL := range m.Dependencies {
@@ -147,10 +216,10 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		allDeps = append(allDeps, dep)
 
 		// Recursively resolve transitive dependencies (avoid re-visiting)
-		if visited[identity] {
+		if _, ok := visited[identity]; ok {
 			continue
 		}
-		visited[identity] = true
+		visited[identity] = parsed.Version
 
 		cloneURL := fetch.NormalizeCloneURL(identity)
 
