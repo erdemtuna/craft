@@ -97,6 +97,20 @@ resolved:
 
 Commit this alongside `craft.yaml`. Anyone who runs `craft install` gets the exact same dependency tree.
 
+## Depending on Repos That Don't Use craft
+
+Not every skill repo has a `craft.yaml` — and that's fine. craft doesn't require upstream repos to adopt it.
+
+When you depend on a repo that has no manifest, craft falls back to **auto-discovery**: it scans the repo's file tree for `SKILL.md` files, parses their frontmatter, and treats each one as a skill. The dependency is pinned to an exact commit and integrity-checked just like any other.
+
+```yaml
+# This works even if acme/legacy-skills has no craft.yaml
+dependencies:
+  legacy: github.com/acme/legacy-skills@v1.0.0
+```
+
+The only difference: repos without `craft.yaml` are treated as **leaf dependencies** — craft can't resolve transitive dependencies from them because there's no manifest declaring any. If `legacy-skills` itself depends on other packages, those won't be pulled in automatically. Once the upstream repo adds a `craft.yaml`, transitive resolution kicks in with no changes on your side.
+
 ## Installation
 
 ```bash
