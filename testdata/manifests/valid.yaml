@@ -1,0 +1,16 @@
+schema_version: 1
+name: code-quality
+version: 1.0.0
+description: Automated code review and linting skills.
+license: MIT
+
+skills:
+  - ./skills/lint-check
+  - ./skills/review-pr
+
+dependencies:
+  git-operations: github.com/example/git-skills@v1.0.0
+  style-guides: github.com/other-org/style-skills@v2.3.1
+
+metadata:
+  author: test-user

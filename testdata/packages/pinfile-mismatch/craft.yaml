@@ -1,0 +1,7 @@
+schema_version: 1
+name: pinfile-pkg
+version: 1.0.0
+skills:
+  - ./skills/lint-check
+dependencies:
+  git-ops: github.com/example/git@v1.0.0

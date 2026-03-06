@@ -1,0 +1,6 @@
+schema_version: 1
+name: collision-pkg
+version: 1.0.0
+skills:
+  - ./skills/skill-a
+  - ./skills/skill-b

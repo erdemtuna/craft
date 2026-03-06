@@ -1,0 +1,7 @@
+pin_version: 1
+resolved:
+  github.com/example/repo@v1.0.0:
+    commit: abc123
+    integrity: sha256-xyz
+    skills:
+      - some-skill

@@ -1,0 +1,7 @@
+schema_version: 1
+name: with-extras
+version: 1.0.0
+skills:
+  - ./skills/one
+custom_field: should be preserved
+another_field: 42

@@ -1,0 +1,5 @@
+schema_version: 1
+name: escape-pkg
+version: 1.0.0
+skills:
+  - ../other-repo/skill
