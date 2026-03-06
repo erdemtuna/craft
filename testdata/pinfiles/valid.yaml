@@ -1,0 +1,9 @@
+pin_version: 1
+
+resolved:
+  github.com/example/git-skills@v1.0.0:
+    commit: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+    integrity: sha256-Xk9jR2mN5pQ8vW3yB7cF1dA4hL6tS0uE9iO2wR5nM3s=
+    skills:
+      - git-commit
+      - git-branch

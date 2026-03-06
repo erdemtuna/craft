@@ -1,0 +1,5 @@
+schema_version: 1
+name: minimal-pkg
+version: 0.1.0
+skills:
+  - ./my-skill
