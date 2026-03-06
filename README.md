@@ -132,8 +132,50 @@ go build -o craft ./cmd/craft
 | `craft init` | Interactive package setup with skill auto-discovery |
 | `craft install` | Resolve, pin, and install all dependencies |
 | `craft update [alias]` | Update dependencies to latest semver tags |
+| `craft add [alias] <url>` | Add a dependency (verify, then update manifest) |
+| `craft remove <alias>` | Remove a dependency and clean up orphaned skills |
 | `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions) |
+| `craft cache clean` | Remove all cached repositories from `~/.craft/cache/` |
 | `craft version` | Print version and exit |
+
+### `craft add`
+
+Add a dependency to your `craft.yaml`. The dependency is resolved and verified before the manifest is updated.
+
+```bash
+# Add with auto-derived alias (uses repo name)
+$ craft add github.com/acme/utility-skills@v1.0.0
+Added "utility-skills" → github.com/acme/utility-skills@v1.0.0
+  skills: git-helper, file-parser
+  version: v1.0.0
+
+# Add with custom alias
+$ craft add utils github.com/acme/utility-skills@v1.0.0
+
+# Add and immediately install
+$ craft add --install github.com/acme/utility-skills@v1.0.0
+```
+
+### `craft remove`
+
+Remove a dependency and clean up skills that are no longer needed by any remaining dependency.
+
+```bash
+$ craft remove utils
+Removed "utils" (github.com/acme/utility-skills@v1.0.0)
+  cleaned up 2 orphaned skill(s): git-helper, file-parser
+```
+
+Skills shared with other dependencies are retained — only truly orphaned skills are removed.
+
+### `craft cache clean`
+
+Remove all cached git repositories from `~/.craft/cache/`.
+
+```bash
+$ craft cache clean
+Removed cache directory: /home/user/.craft/cache
+```
 
 ## Manifest Reference (`craft.yaml`)
 
@@ -156,6 +198,29 @@ dependencies:               # alias → host/org/repo@vX.Y.Z
 Each skill directory must contain a `SKILL.md` file — a markdown file with YAML frontmatter that declares the skill's identity. craft parses the frontmatter to extract the `name` and `description` fields, and preserves any additional fields for forward compatibility.
 
 For the full specification and a real-world example, see [Anthropic's skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) — the canonical reference for the Agent Skills format that craft builds on.
+
+## Agent Support
+
+craft auto-detects your AI agent and installs skills to the correct directory:
+
+| Agent | Marker | Install Path |
+|-------|--------|-------------|
+| Claude Code | `~/.claude/` | `~/.claude/skills/` |
+| GitHub Copilot | `~/.copilot/` | `~/.copilot/skills/` |
+
+When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection:
+
+```bash
+$ craft install --target ./my-skills
+```
+
+## Known Limitations
+
+- **go-git SSH limitations** — craft uses [go-git](https://github.com/go-git/go-git) for git operations. This means no `~/.ssh/config` ProxyJump support, no hardware token (YubiKey) auth, and no agent forwarding. Set `GITHUB_TOKEN` or `CRAFT_TOKEN` for private repos as a reliable alternative.
+- **No monorepo subpath support** — dependency URLs point to whole repositories (`github.com/org/repo@v1.0.0`). Subpath support (e.g., `repo/path/to/skills@v1`) is designed for but not yet implemented.
+- **No pre-release versions** — version tags must be strict semver (`vMAJOR.MINOR.PATCH`). Pre-release suffixes like `-beta.1` are rejected.
+- **No version ranges** — dependencies use exact versions. `craft update` bumps to the latest available tag; there are no `^` or `~` range constraints.
+- **Cache grows unbounded** — use `craft cache clean` periodically to reclaim disk space.
 
 ## Acknowledgments
 
