@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// validateCmd runs all validation checks on the current craft package
+// and reports errors to stderr with actionable suggestions.
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate a craft package",
