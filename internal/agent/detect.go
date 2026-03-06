@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Type represents a supported AI agent.
@@ -42,10 +43,8 @@ type DetectResult struct {
 }
 
 // Detect identifies the user's AI agent by checking for known directory
-// markers under the given home directory. Precedence: Claude Code first,
-// then GitHub Copilot.
-//
-// Returns an error if no known agent is detected, suggesting --target.
+// markers under the given home directory. Returns an error if no known
+// agent is detected or if multiple agents are found, suggesting --target.
 func Detect(homeDir string) (*DetectResult, error) {
 	checks := []struct {
 		agent   Type
@@ -56,15 +55,34 @@ func Detect(homeDir string) (*DetectResult, error) {
 		{Copilot, ".copilot", filepath.Join(homeDir, ".copilot", "skills")},
 	}
 
+	var detected []struct {
+		agent   Type
+		install string
+	}
 	for _, c := range checks {
 		markerPath := filepath.Join(homeDir, c.marker)
 		if info, err := os.Stat(markerPath); err == nil && info.IsDir() {
-			return &DetectResult{
-				Agent:       c.agent,
-				InstallPath: c.install,
-			}, nil
+			detected = append(detected, struct {
+				agent   Type
+				install string
+			}{c.agent, c.install})
 		}
 	}
 
-	return nil, fmt.Errorf("no known AI agent detected — use --target <path> to specify the installation directory")
+	switch len(detected) {
+	case 0:
+		return nil, fmt.Errorf("no known AI agent detected — use --target <path> to specify the installation directory")
+	case 1:
+		return &DetectResult{
+			Agent:       detected[0].agent,
+			InstallPath: detected[0].install,
+		}, nil
+	default:
+		names := make([]string, len(detected))
+		for i, d := range detected {
+			names[i] = d.agent.String()
+		}
+		return nil, fmt.Errorf("multiple AI agents detected (%s) — use --target <path> to specify the installation directory",
+			strings.Join(names, ", "))
+	}
 }

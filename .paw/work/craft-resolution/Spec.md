@@ -81,7 +81,7 @@ Acceptance Scenarios:
 1. Given Claude Code is detected (e.g., `~/.claude/` exists), When the user runs `craft install`, Then skills are installed to `~/.claude/skills/<skill-name>/`
 2. Given no known agent is detected, When the user runs `craft install`, Then the tool exits with an error suggesting `--target <path>`
 3. Given `--target /custom/path`, When the user runs `craft install --target /custom/path`, Then skills are installed to `/custom/path/<skill-name>/`
-4. Given both `~/.claude/` and `~/.copilot/` exist, When the user runs `craft install`, Then Claude Code takes precedence and skills are installed to `~/.claude/skills/<skill-name>/`
+4. Given both `~/.claude/` and `~/.copilot/` exist, When the user runs `craft install`, Then the tool exits with an error listing the detected agents and suggesting `--target <path>`
 
 ### User Story P6 – Global Cache
 
@@ -131,7 +131,7 @@ Acceptance Scenarios:
 - FR-008: Write resolved dependencies (both direct and transitive) to `craft.pin.yaml` using existing pinfile types, with transitive entries distinguished by a `source` field indicating the parent dependency that declared them (Stories: P1)
 - FR-009: Read existing `craft.pin.yaml` and skip re-resolution for dependencies whose manifest entries have not changed (Stories: P1, P6)
 - FR-010: Copy resolved skill directories to the target installation path as `<target>/<skill-name>/` (Stories: P1, P5)
-- FR-011: Auto-detect the user's AI agent by checking for known directory markers — `~/.claude/` for Claude Code (installs to `~/.claude/skills/`), `~/.copilot/` for GitHub Copilot (installs to `~/.copilot/skills/`). When multiple agents are detected, prefer Claude Code (first match in priority order). (Stories: P5)
+- FR-011: Auto-detect the user's AI agent by checking for known directory markers — `~/.claude/` for Claude Code (installs to `~/.claude/skills/`), `~/.copilot/` for GitHub Copilot (installs to `~/.copilot/skills/`). When multiple agents are detected, error with a clear message listing the detected agents and suggesting `--target`. (Stories: P5)
 - FR-012: Support `--target <path>` flag on `craft install` and `craft update` to override auto-detected agent path (Stories: P5)
 - FR-013: Authenticate to private repositories using SSH keys (via ssh-agent) (Stories: P3)
 - FR-014: Authenticate to private repositories using environment tokens (`GITHUB_TOKEN`, `CRAFT_TOKEN`) via HTTPS — both tokens follow the same code path, `CRAFT_TOKEN` takes precedence if both are set (Stories: P3)

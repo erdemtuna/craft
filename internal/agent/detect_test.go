@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -38,17 +39,20 @@ func TestDetectCopilot(t *testing.T) {
 	}
 }
 
-func TestDetectPrecedenceClaudeFirst(t *testing.T) {
+func TestDetectMultipleAgentsError(t *testing.T) {
 	home := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
 	_ = os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
 
-	result, err := Detect(home)
-	if err != nil {
-		t.Fatalf("Detect error: %v", err)
+	_, err := Detect(home)
+	if err == nil {
+		t.Fatal("Expected error when multiple agents detected")
 	}
-	if result.Agent != ClaudeCode {
-		t.Errorf("Agent = %v, want ClaudeCode (precedence)", result.Agent)
+	if !strings.Contains(err.Error(), "multiple AI agents detected") {
+		t.Errorf("Expected 'multiple AI agents' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--target") {
+		t.Errorf("Expected '--target' suggestion in error, got: %v", err)
 	}
 }
 
