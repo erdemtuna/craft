@@ -41,7 +41,9 @@ func TestCacheCleanEmptyCache(t *testing.T) {
 	// Create empty cache
 	tmpDir := t.TempDir()
 	cacheDir := filepath.Join(tmpDir, ".craft", "cache")
-	os.MkdirAll(cacheDir, 0o700)
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 
 	entries, _ := os.ReadDir(cacheDir)
 	if len(entries) != 0 {
