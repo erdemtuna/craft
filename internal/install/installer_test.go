@@ -130,3 +130,47 @@ func TestInstallRejectsEmptySkillName(t *testing.T) {
 		t.Fatal("expected error for empty skill name, got nil")
 	}
 }
+
+func TestInstallCleansUpStagingOnError(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "skills")
+	// Install a skill with a path-traversal file (will fail validation)
+	skills := map[string]map[string][]byte{
+		"bad-skill": {
+			"../../etc/passwd": []byte("pwned"),
+		},
+	}
+	Install(target, skills)
+	// Staging directory should be cleaned up
+	entries, _ := os.ReadDir(target)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".staging") {
+			t.Errorf("staging directory %q was not cleaned up", e.Name())
+		}
+	}
+}
+
+func TestInstallAtomicOverwrite(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "skills")
+	// First install
+	skills1 := map[string]map[string][]byte{
+		"my-skill": {"SKILL.md": []byte("v1")},
+	}
+	if err := Install(target, skills1); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	// Second install overwrites atomically
+	skills2 := map[string]map[string][]byte{
+		"my-skill": {"SKILL.md": []byte("v2"), "extra.txt": []byte("new file")},
+	}
+	if err := Install(target, skills2); err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	content, _ := os.ReadFile(filepath.Join(target, "my-skill", "SKILL.md"))
+	if string(content) != "v2" {
+		t.Errorf("expected v2, got %q", content)
+	}
+	// Old files should be gone
+	if _, err := os.ReadDir(filepath.Join(target, "my-skill")); err != nil {
+		t.Fatalf("skill dir should exist: %v", err)
+	}
+}

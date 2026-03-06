@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/erdemtuna/craft/internal/integrity"
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
+	"github.com/erdemtuna/craft/internal/semver"
 	"github.com/erdemtuna/craft/internal/skill"
 )
 
@@ -86,7 +88,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 			bestParsed, _ := ParseDepURL(best.URL)
 			for _, dep := range deps[1:] {
 				parsed, _ := ParseDepURL(dep.URL)
-				if compareSemver(parsed.Version, bestParsed.Version) > 0 {
+				if semver.Compare(parsed.Version, bestParsed.Version) > 0 {
 					best = dep
 					bestParsed = parsed
 				}
@@ -123,6 +125,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 
 			files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
 			if err != nil {
+				// No craft.yaml → leaf dependency (no transitive deps)
 				continue
 			}
 
@@ -133,7 +136,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 
 			depManifest, err := manifest.Parse(bytes.NewReader(craftYAML))
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("parsing craft.yaml from %s at %s: %w", dep.URL, parsed.Version, err)
 			}
 
 			if len(depManifest.Dependencies) > 0 {
@@ -230,13 +233,14 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 
 		files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
 		if err != nil {
+			// No craft.yaml → leaf dependency (no transitive deps)
 			continue
 		}
 
 		if craftYAML, ok := files["craft.yaml"]; ok {
 			depManifest, err := manifest.Parse(bytes.NewReader(craftYAML))
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("parsing craft.yaml from %s: %w", depURL, err)
 			}
 
 			if len(depManifest.Dependencies) > 0 {
@@ -342,7 +346,10 @@ func (r *Resolver) discoverFromManifestSkills(cloneURL, commitSHA string, skillD
 		dirs = append(dirs, sp)
 
 		// Read all files in skill directory for integrity
-		treePaths, _ := r.fetcher.ListTree(cloneURL, commitSHA)
+		treePaths, listErr := r.fetcher.ListTree(cloneURL, commitSHA)
+		if listErr != nil {
+			return nil, nil, nil, fmt.Errorf("listing tree for integrity: %w", listErr)
+		}
 		prefix := sp + "/"
 		var dirPaths []string
 		for _, p := range treePaths {
@@ -350,7 +357,10 @@ func (r *Resolver) discoverFromManifestSkills(cloneURL, commitSHA string, skillD
 				dirPaths = append(dirPaths, p)
 			}
 		}
-		dirFiles, _ := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		dirFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		if readErr != nil {
+			return nil, nil, nil, fmt.Errorf("reading skill files for integrity: %w", readErr)
+		}
 		for k, v := range dirFiles {
 			allFiles[k] = v
 		}
@@ -413,10 +423,17 @@ func (r *Resolver) autoDiscoverSkills(cloneURL, commitSHA string) ([]string, []s
 		var dirPaths []string
 		for _, p := range allPaths {
 			if prefix == "" || strings.HasPrefix(p, prefix) {
+				// For root-level skills, exclude infrastructure files
+				if prefix == "" && IsInfraFile(p) {
+					continue
+				}
 				dirPaths = append(dirPaths, p)
 			}
 		}
-		dirFiles, _ := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		dirFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		if readErr != nil {
+			return nil, nil, nil, fmt.Errorf("reading skill files for integrity: %w", readErr)
+		}
 		for k, v := range dirFiles {
 			allFiles[k] = v
 		}
@@ -453,26 +470,35 @@ func detectCollisions(resolved []ResolvedDep) error {
 	return nil
 }
 
-// compareSemver compares two semver version strings (without v prefix).
-// Returns -1, 0, or 1.
-func compareSemver(a, b string) int {
-	aParts := parseSemverParts(a)
-	bParts := parseSemverParts(b)
+// IsInfraFile returns true for common infrastructure files that should not
+// be included in root-level skill file collection. Subdirectory skills
+// are not affected — this only applies when SKILL.md is at the repo root.
+func IsInfraFile(path string) bool {
+	// Exclude common infrastructure files at any level
+	base := strings.ToLower(filepath.Base(path))
+	infraFiles := map[string]bool{
+		"license": true, "licence": true,
+		"license.md": true, "licence.md": true,
+		"license.txt": true, "licence.txt": true,
+		"readme.md": true, "readme.txt": true, "readme": true,
+		"changelog.md": true, "changelog.txt": true, "changelog": true,
+		"contributing.md": true, "contributing.txt": true,
+		"code_of_conduct.md": true,
+		"craft.yaml": true,
+		".gitignore": true, ".gitattributes": true,
+	}
+	if infraFiles[base] {
+		return true
+	}
 
-	for i := 0; i < 3; i++ {
-		if aParts[i] > bParts[i] {
-			return 1
-		}
-		if aParts[i] < bParts[i] {
-			return -1
+	// Exclude common infrastructure directories
+	dir := strings.ToLower(path)
+	infraDirs := []string{".github/", ".gitlab/", ".circleci/", ".vscode/", ".idea/"}
+	for _, prefix := range infraDirs {
+		if strings.HasPrefix(dir, prefix) {
+			return true
 		}
 	}
-	return 0
-}
 
-// parseSemverParts splits "1.2.3" into [1, 2, 3].
-func parseSemverParts(v string) [3]int {
-	var parts [3]int
-	fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
-	return parts
+	return false
 }

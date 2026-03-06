@@ -21,7 +21,10 @@ func Digest(files map[string][]byte) string {
 
 	h := sha256.New()
 	for _, p := range paths {
+		h.Write([]byte(p))
+		h.Write([]byte{0})
 		h.Write(files[p])
+		h.Write([]byte{0})
 	}
 
 	return "sha256-" + base64.StdEncoding.EncodeToString(h.Sum(nil))

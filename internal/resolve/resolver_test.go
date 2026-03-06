@@ -7,6 +7,7 @@ import (
 	"github.com/erdemtuna/craft/internal/fetch"
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
+	"github.com/erdemtuna/craft/internal/semver"
 )
 
 func newTestFetcher() *fetch.MockFetcher {
@@ -260,9 +261,9 @@ func TestCompareSemver(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
-			got := compareSemver(tt.a, tt.b)
+			got := semver.Compare(tt.a, tt.b)
 			if got != tt.want {
-				t.Errorf("compareSemver(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+				t.Errorf("semver.Compare(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
 			}
 		})
 	}

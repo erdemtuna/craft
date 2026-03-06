@@ -10,6 +10,7 @@ import (
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
+	"github.com/erdemtuna/craft/internal/semver"
 	"github.com/spf13/cobra"
 )
 
@@ -83,7 +84,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing tags for %s: %w", depURL, err)
 		}
 
-		latest := findLatestSemverTag(tags)
+		latest := semver.FindLatest(tags)
 		if latest == "" {
 			cmd.PrintErrf("warning: no semver tags found for %s\n", parsed.PackageIdentity())
 			continue
@@ -181,38 +182,4 @@ func writeManifestAtomic(path string, m *manifest.Manifest) error {
 	return nil
 }
 
-func findLatestSemverTag(tags []string) string {
-	var latest string
-	var latestParts [3]int
 
-	for _, tag := range tags {
-		if len(tag) < 2 || tag[0] != 'v' {
-			continue
-		}
-		version := tag[1:]
-		var parts [3]int
-		n, _ := fmt.Sscanf(version, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
-		if n != 3 {
-			continue
-		}
-
-		if latest == "" || compareParts(parts, latestParts) > 0 {
-			latest = tag
-			latestParts = parts
-		}
-	}
-
-	return latest
-}
-
-func compareParts(a, b [3]int) int {
-	for i := 0; i < 3; i++ {
-		if a[i] > b[i] {
-			return 1
-		}
-		if a[i] < b[i] {
-			return -1
-		}
-	}
-	return 0
-}

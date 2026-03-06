@@ -34,7 +34,7 @@ type DepURL struct {
 func ParseDepURL(raw string) (*DepURL, error) {
 	matches := depURLPattern.FindStringSubmatch(raw)
 	if matches == nil {
-		return nil, fmt.Errorf("invalid dependency URL %q: expected host/org/repo@vMAJOR.MINOR.PATCH", raw)
+		return nil, fmt.Errorf("invalid dependency URL %q: expected host/org/repo@vMAJOR.MINOR.PATCH (pre-release versions like -beta.1 are not supported)", raw)
 	}
 
 	return &DepURL{

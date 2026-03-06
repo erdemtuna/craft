@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/erdemtuna/craft/internal/manifest"
+	"github.com/erdemtuna/craft/internal/semver"
 )
 
 func TestFindLatestSemverTag(t *testing.T) {
@@ -20,8 +21,7 @@ func TestFindLatestSemverTag(t *testing.T) {
 		{"patch_wins", []string{"v1.0.0", "v1.0.1", "v1.0.2"}, "v1.0.2"},
 		{"single_tag", []string{"v3.2.1"}, "v3.2.1"},
 		{"skip_non_semver", []string{"latest", "v1.0.0", "beta"}, "v1.0.0"},
-		// Sscanf parses "1.0.0-alpha" as 1.0.0, so pre-release suffixes are treated as their base version
-		{"prerelease_parsed_as_base", []string{"v1.0.0-alpha", "v0.9.0"}, "v1.0.0-alpha"},
+		{"prerelease_rejected", []string{"v1.0.0-alpha", "v0.9.0"}, "v0.9.0"},
 		{"no_v_prefix_skipped", []string{"1.0.0", "2.0.0"}, ""},
 		{"empty", []string{}, ""},
 		{"nil", nil, ""},
@@ -35,9 +35,9 @@ func TestFindLatestSemverTag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := findLatestSemverTag(tt.tags)
+			got := semver.FindLatest(tt.tags)
 			if got != tt.want {
-				t.Errorf("findLatestSemverTag(%v) = %q, want %q", tt.tags, got, tt.want)
+				t.Errorf("semver.FindLatest(%v) = %q, want %q", tt.tags, got, tt.want)
 			}
 		})
 	}
@@ -46,24 +46,24 @@ func TestFindLatestSemverTag(t *testing.T) {
 func TestCompareParts(t *testing.T) {
 	tests := []struct {
 		name string
-		a, b [3]int
+		a, b string
 		want int
 	}{
-		{"equal", [3]int{1, 2, 3}, [3]int{1, 2, 3}, 0},
-		{"a_greater_major", [3]int{2, 0, 0}, [3]int{1, 9, 9}, 1},
-		{"b_greater_major", [3]int{1, 0, 0}, [3]int{2, 0, 0}, -1},
-		{"a_greater_minor", [3]int{1, 2, 0}, [3]int{1, 1, 9}, 1},
-		{"b_greater_minor", [3]int{1, 1, 0}, [3]int{1, 2, 0}, -1},
-		{"a_greater_patch", [3]int{1, 0, 2}, [3]int{1, 0, 1}, 1},
-		{"b_greater_patch", [3]int{1, 0, 1}, [3]int{1, 0, 2}, -1},
-		{"zeros", [3]int{0, 0, 0}, [3]int{0, 0, 0}, 0},
+		{"equal", "1.2.3", "1.2.3", 0},
+		{"a_greater_major", "2.0.0", "1.9.9", 1},
+		{"b_greater_major", "1.0.0", "2.0.0", -1},
+		{"a_greater_minor", "1.2.0", "1.1.9", 1},
+		{"b_greater_minor", "1.1.0", "1.2.0", -1},
+		{"a_greater_patch", "1.0.2", "1.0.1", 1},
+		{"b_greater_patch", "1.0.1", "1.0.2", -1},
+		{"zeros", "0.0.0", "0.0.0", 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := compareParts(tt.a, tt.b)
+			got := semver.Compare(tt.a, tt.b)
 			if got != tt.want {
-				t.Errorf("compareParts(%v, %v) = %d, want %d", tt.a, tt.b, got, tt.want)
+				t.Errorf("semver.Compare(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
 			}
 		})
 	}

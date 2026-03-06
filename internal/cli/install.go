@@ -151,7 +151,7 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 	for _, dep := range result.Resolved {
 		parsed, err := resolve.ParseDepURL(dep.URL)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("collecting files for %s: %w", dep.URL, err)
 		}
 
 		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
@@ -165,7 +165,7 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 			// Read all files in skill directory
 			allPaths, err := fetcher.ListTree(cloneURL, dep.Commit)
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("listing files for %s: %w", skillName, err)
 			}
 
 			prefix := skillDir + "/"
@@ -175,13 +175,17 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 			var filePaths []string
 			for _, p := range allPaths {
 				if prefix == "" || strings.HasPrefix(p, prefix) {
+					// For root-level skills, exclude infrastructure files
+					if prefix == "" && resolve.IsInfraFile(p) {
+						continue
+					}
 					filePaths = append(filePaths, p)
 				}
 			}
 
 			files, err := fetcher.ReadFiles(cloneURL, dep.Commit, filePaths)
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("reading files for %s: %w", skillName, err)
 			}
 
 			// Remap paths to be relative to skill directory

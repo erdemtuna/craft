@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,14 +71,17 @@ func TestCacheRemoveNonexistent(t *testing.T) {
 }
 
 func TestSanitizeURL(t *testing.T) {
+	const orgRepoHash = "4c06e3f1e1c41311585c1ae6798e89d80713d0205bce65835c4682eb1474f7b8"
+	const gitlabHash = "bcc37343d23b16e1aa029442d9295e9ad8f30dc46d2cb83b7aed487bc6d7756f"
+
 	tests := []struct {
 		input string
 		want  string
 	}{
-		{"https://github.com/org/repo.git", "github.com-org-repo"},
-		{"github.com/org/repo", "github.com-org-repo"},
-		{"git@github.com:org/repo.git", "github.com-org-repo"},
-		{"https://gitlab.example.io/my-org/my-repo.git", "gitlab.example.io-my-org-my-repo"},
+		{"https://github.com/org/repo.git", orgRepoHash},
+		{"github.com/org/repo", orgRepoHash},
+		{"git@github.com:org/repo.git", orgRepoHash},
+		{"https://gitlab.example.io/my-org/my-repo.git", gitlabHash},
 	}
 
 	for _, tt := range tests {
@@ -86,7 +90,34 @@ func TestSanitizeURL(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("sanitizeURL(%q) = %q, want %q", tt.input, got, tt.want)
 			}
+			if len(got) != 64 {
+				t.Errorf("expected 64-char hex string, got length %d", len(got))
+			}
+			if _, err := hex.DecodeString(got); err != nil {
+				t.Errorf("result is not valid hex: %v", err)
+			}
 		})
+	}
+}
+
+func TestSanitizeURLCollisionFree(t *testing.T) {
+	// These two URLs previously collided (both mapped to "github.com-org-name-repo")
+	a := sanitizeURL("https://github.com/org-name/repo.git")
+	b := sanitizeURL("https://github.com/org/name-repo.git")
+
+	if a == b {
+		t.Errorf("collision detected: %q and %q both hash to %q",
+			"github.com/org-name/repo", "github.com/org/name-repo", a)
+	}
+
+	// Verify both are valid hex of correct length
+	for _, h := range []string{a, b} {
+		if len(h) != 64 {
+			t.Errorf("expected 64-char hex string, got length %d: %s", len(h), h)
+		}
+		if _, err := hex.DecodeString(h); err != nil {
+			t.Errorf("result is not valid hex: %v", err)
+		}
 	}
 }
 

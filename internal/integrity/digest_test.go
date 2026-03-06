@@ -57,14 +57,9 @@ func TestDigestContentSensitive(t *testing.T) {
 func TestDigestPathSensitive(t *testing.T) {
 	d1 := Digest(map[string][]byte{"a.txt": []byte("hello")})
 	d2 := Digest(map[string][]byte{"b.txt": []byte("hello")})
-	// Different paths but same content — digest should differ because
-	// different files are selected in sort order (and path doesn't appear
-	// in hash, but the concatenation order changes the overall hash context).
-	// Actually with single-file maps of same content, digest is the same.
-	// This is expected — the digest hashes content only, not paths.
-	// Paths determine ordering only.
-	_ = d1
-	_ = d2
+	if d1 == d2 {
+		t.Error("Different file paths with same content should produce different digest")
+	}
 }
 
 func TestDigestMultipleFilesVsSingle(t *testing.T) {
@@ -74,15 +69,16 @@ func TestDigestMultipleFilesVsSingle(t *testing.T) {
 		"b.txt": []byte("world"),
 	})
 
-	if single != multi {
-		// They concatenate to the same bytes but that's coincidental.
-		// Actually: single has "helloworld" in one file.
-		// Multi has "hello" (a.txt sorted first) then "world" (b.txt).
-		// The concatenation is identical: "helloworld".
-		// So digests SHOULD be equal.
+	if single == multi {
+		t.Error("Single file and multiple files with same concatenated content should produce different digest")
 	}
+}
 
-	if single != multi {
-		t.Errorf("Concatenation of sorted files should match single file with same content")
+func TestDigestPathIncludedInHash(t *testing.T) {
+	// Moving content from one path to another changes the digest
+	d1 := Digest(map[string][]byte{"src/a.txt": []byte("hello")})
+	d2 := Digest(map[string][]byte{"dst/a.txt": []byte("hello")})
+	if d1 == d2 {
+		t.Error("Different file paths with same content should produce different digest")
 	}
 }

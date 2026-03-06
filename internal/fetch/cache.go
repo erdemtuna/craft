@@ -1,6 +1,8 @@
 package fetch
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +19,7 @@ type Cache struct {
 // NewCache creates a Cache with the given root directory.
 // Creates the root directory if it does not exist.
 func NewCache(root string) (*Cache, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("creating cache directory: %w", err)
 	}
 	return &Cache{Root: root}, nil
@@ -46,22 +48,19 @@ func (c *Cache) Has(repoURL string) bool {
 }
 
 // sanitizeURL converts a git URL to a filesystem-safe directory name.
-// "https://github.com/org/repo.git" → "github.com-org-repo"
-// "github.com/org/repo" → "github.com-org-repo"
-func sanitizeURL(url string) string {
-	// Strip protocol
-	s := url
+// Uses SHA-256 hash of the normalized URL to avoid collisions.
+func sanitizeURL(rawURL string) string {
+	// Normalize: strip protocol and .git suffix to get a canonical identity
+	s := rawURL
 	s = strings.TrimPrefix(s, "https://")
 	s = strings.TrimPrefix(s, "http://")
 	s = strings.TrimPrefix(s, "git@")
 	s = strings.TrimPrefix(s, "ssh://")
-
-	// Strip .git suffix
 	s = strings.TrimSuffix(s, ".git")
+	s = strings.ReplaceAll(s, ":", "/") // normalize git@ style
 
-	// Replace separators with hyphens
-	s = strings.ReplaceAll(s, "/", "-")
-	s = strings.ReplaceAll(s, ":", "-")
-
-	return s
+	// Use SHA-256 hash to avoid collisions between similarly-named repos
+	// (e.g., org-name/repo vs org/name-repo)
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }

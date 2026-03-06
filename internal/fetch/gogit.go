@@ -1,10 +1,12 @@
 package fetch
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -12,14 +14,25 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
+const defaultGitTimeout = 2 * time.Minute
+
 // GoGitFetcher implements GitFetcher using go-git with a local bare clone cache.
 type GoGitFetcher struct {
-	cache *Cache
+	cache   *Cache
+	timeout time.Duration
+	offline bool // skip network fetches, use cached data only
 }
 
 // NewGoGitFetcher creates a GoGitFetcher backed by the given cache.
 func NewGoGitFetcher(cache *Cache) *GoGitFetcher {
-	return &GoGitFetcher{cache: cache}
+	return &GoGitFetcher{cache: cache, timeout: defaultGitTimeout}
+}
+
+// SetOffline configures the fetcher to skip network operations and use
+// cached data only. Clones still occur on cache miss — offline mode
+// only suppresses fetch-on-hit to avoid unnecessary network round-trips.
+func (f *GoGitFetcher) SetOffline(offline bool) {
+	f.offline = offline
 }
 
 // ResolveRef resolves a git tag or branch name to a full commit SHA.
@@ -164,6 +177,19 @@ func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 
 	repoPath := f.cache.RepoPath(url)
 
+	// Acquire per-repo lock to prevent concurrent corruption
+	lock, err := lockRepo(repoPath)
+	if err != nil {
+		// If locking fails, proceed without lock (best-effort)
+		// This handles systems where flock is unavailable
+		lock = nil
+	}
+	defer func() {
+		if lock != nil {
+			lock.Unlock()
+		}
+	}()
+
 	if f.cache.Has(url) {
 		// Cache hit — open and fetch
 		repo, err := git.PlainOpen(repoPath)
@@ -173,17 +199,27 @@ func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 			return f.cloneToCache(url, repoPath)
 		}
 
+		if f.offline {
+			return repo, nil
+		}
+
 		// Fetch latest (best-effort — if offline, use existing)
 		auth := Auth(url)
-		err = repo.Fetch(&git.FetchOptions{
+		ctx, cancel := context.WithTimeout(context.Background(), f.timeout)
+		defer cancel()
+		err = repo.FetchContext(ctx, &git.FetchOptions{
 			RemoteURL: url,
 			Auth:      auth,
 			Tags:      git.AllTags,
 			Force:     true,
 		})
 		if err != nil && err != git.NoErrAlreadyUpToDate {
-			// Fetch failed — use existing cached data (offline fallback)
-			_ = err
+			// Auth failures should propagate — stale cache with bad credentials
+			// likely means the user's token expired, not a network issue
+			if isAuthError(err) {
+				return nil, WrapAuthError(fmt.Errorf("fetching %s: %w", url, err), url)
+			}
+			// Network/timeout failures — use existing cached data (offline fallback)
 		}
 
 		return repo, nil
@@ -207,7 +243,9 @@ func (f *GoGitFetcher) cloneToCache(url, repoPath string) (*git.Repository, erro
 		os.RemoveAll(tmpDir)
 	}()
 
-	_, err = git.PlainClone(tmpDir, true, &git.CloneOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), f.timeout)
+	defer cancel()
+	_, err = git.PlainCloneContext(ctx, tmpDir, true, &git.CloneOptions{
 		URL:  url,
 		Auth: auth,
 		Tags: git.AllTags,
@@ -233,7 +271,9 @@ func (f *GoGitFetcher) cloneToCache(url, repoPath string) (*git.Repository, erro
 // cloneToMemory clones a repo into memory (no cache).
 func (f *GoGitFetcher) cloneToMemory(url string) (*git.Repository, error) {
 	auth := Auth(url)
-	repo, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), f.timeout)
+	defer cancel()
+	repo, err := git.CloneContext(ctx, memory.NewStorage(), nil, &git.CloneOptions{
 		URL:  url,
 		Auth: auth,
 		Tags: git.AllTags,
@@ -242,6 +282,17 @@ func (f *GoGitFetcher) cloneToMemory(url string) (*git.Repository, error) {
 		return nil, err
 	}
 	return repo, nil
+}
+
+// isAuthError returns true if the error message suggests an authentication failure.
+func isAuthError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	for _, keyword := range []string{"authentication", "denied", "unauthorized", "403", "401"} {
+		if strings.Contains(msg, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 // NormalizeCloneURL converts a dependency package identity to a clone URL.

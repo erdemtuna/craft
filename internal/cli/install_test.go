@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/erdemtuna/craft/internal/fetch"
@@ -161,13 +162,12 @@ func TestCollectSkillFiles_SkipsBadDepURL(t *testing.T) {
 		},
 	}
 
-	skills, err := collectSkillFiles(mock, result)
-	if err != nil {
-		t.Fatalf("collectSkillFiles returned error: %v", err)
+	_, err := collectSkillFiles(mock, result)
+	if err == nil {
+		t.Fatal("expected error for bad dep URL, got nil")
 	}
-
-	if len(skills) != 0 {
-		t.Errorf("expected 0 skills (bad URL skipped), got %d", len(skills))
+	if !strings.Contains(err.Error(), "collecting files for") {
+		t.Errorf("expected 'collecting files for' in error, got: %v", err)
 	}
 }
 
