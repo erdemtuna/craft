@@ -20,6 +20,10 @@ type ResolvedEntry struct {
 	// Integrity is the SHA-256 integrity digest of the dependency content.
 	Integrity string `yaml:"integrity"`
 
+	// Source is the dependency URL of the parent package that declared this
+	// dependency. Empty for direct dependencies, set for transitive entries.
+	Source string `yaml:"source,omitempty"`
+
 	// Skills lists the skill names discovered in the dependency.
 	Skills []string `yaml:"skills"`
 }
