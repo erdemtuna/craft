@@ -95,22 +95,22 @@ func (w *Wizard) Run() error {
 	}
 
 	// Auto-discover skills
-	fmt.Fprintln(w.Out)
-	fmt.Fprintln(w.Out, "Discovering skill directories...")
+	_, _ = fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintln(w.Out, "Discovering skill directories...")
 
 	skills, err := DiscoverSkills(w.Root)
 	if err != nil {
-		fmt.Fprintf(w.ErrOut, "warning: error during skill discovery: %v\n", err)
+		_, _ = fmt.Fprintf(w.ErrOut, "warning: error during skill discovery: %v\n", err)
 		skills = nil
 	}
 
 	if len(skills) > 0 {
-		fmt.Fprintf(w.Out, "Found %d skill(s):\n", len(skills))
+		_, _ = fmt.Fprintf(w.Out, "Found %d skill(s):\n", len(skills))
 		for _, s := range skills {
-			fmt.Fprintf(w.Out, "  %s\n", s)
+			_, _ = fmt.Fprintf(w.Out, "  %s\n", s)
 		}
 	} else {
-		fmt.Fprintln(w.Out, "No skill directories found.")
+		_, _ = fmt.Fprintln(w.Out, "No skill directories found.")
 		skills = []string{}
 	}
 
@@ -133,17 +133,17 @@ func (w *Wizard) Run() error {
 
 	if err := manifest.Write(m, f); err != nil {
 		f.Close()
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, manifestPath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("saving craft.yaml: %w", err)
 	}
 

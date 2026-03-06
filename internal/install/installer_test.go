@@ -35,7 +35,9 @@ func TestInstallOverwrites(t *testing.T) {
 	skills1 := map[string]map[string][]byte{
 		"my-skill": {"SKILL.md": []byte("old")},
 	}
-	Install(target, skills1)
+	if err := Install(target, skills1); err != nil {
+		t.Fatalf("first Install error: %v", err)
+	}
 
 	skills2 := map[string]map[string][]byte{
 		"my-skill": {"SKILL.md": []byte("new")},
@@ -139,8 +141,7 @@ func TestInstallCleansUpStagingOnError(t *testing.T) {
 			"../../etc/passwd": []byte("pwned"),
 		},
 	}
-	Install(target, skills)
-	// Staging directory should be cleaned up
+	_ = Install(target, skills)
 	entries, _ := os.ReadDir(target)
 	for _, e := range entries {
 		if strings.HasSuffix(e.Name(), ".staging") {

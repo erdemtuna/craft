@@ -32,7 +32,7 @@ func lockRepo(repoPath string) (*fileLock, error) {
 // Unlock releases the filesystem lock.
 func (l *fileLock) Unlock() {
 	if l.file != nil {
-		syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
-		l.file.Close()
+		_ = syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
+		_ = l.file.Close()
 	}
 }

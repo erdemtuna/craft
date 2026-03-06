@@ -26,7 +26,7 @@ func Compare(a, b string) int {
 // Returns [0, 0, 0] for unparseable input.
 func ParseParts(v string) [3]int {
 	var parts [3]int
-	fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
+	_, _ = fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
 	return parts
 }
 

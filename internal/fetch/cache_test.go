@@ -37,7 +37,9 @@ func TestCacheHasHit(t *testing.T) {
 	repoPath := cache.RepoPath(url)
 
 	// Simulate cached repo by creating the directory
-	os.MkdirAll(repoPath, 0o755)
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	if !cache.Has(url) {
 		t.Error("Expected cache hit for existing repo directory")

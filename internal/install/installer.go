@@ -35,7 +35,7 @@ func Install(target string, skills map[string]map[string][]byte) error {
 		// Write to staging directory for atomicity
 		stagingDir := skillDir + ".staging"
 		// Clean up any leftover staging directory from a previous interrupted install
-		os.RemoveAll(stagingDir)
+		_ = os.RemoveAll(stagingDir)
 
 		if err := os.MkdirAll(stagingDir, 0o700); err != nil {
 			return fmt.Errorf("creating staging directory for %q: %w", skillName, err)
@@ -66,13 +66,13 @@ func Install(target string, skills map[string]map[string][]byte) error {
 		}()
 
 		if writeErr != nil {
-			os.RemoveAll(stagingDir)
+			_ = os.RemoveAll(stagingDir)
 			return writeErr
 		}
 
 		// Atomic swap: remove old, rename staging to final
 		if err := os.RemoveAll(skillDir); err != nil {
-			os.RemoveAll(stagingDir)
+			_ = os.RemoveAll(stagingDir)
 			return fmt.Errorf("removing existing skill %q: %w", skillName, err)
 		}
 
