@@ -376,13 +376,13 @@ func TestCountSkills_Empty(t *testing.T) {
 	}
 }
 
-func TestResolveInstallTarget_ExplicitPath(t *testing.T) {
+func TestResolveInstallTargets_ExplicitPath(t *testing.T) {
 	want := "/custom/install/path"
-	got, err := resolveInstallTarget(want)
+	got, err := resolveInstallTargets(want)
 	if err != nil {
-		t.Fatalf("resolveInstallTarget error: %v", err)
+		t.Fatalf("resolveInstallTargets error: %v", err)
 	}
-	if got != want {
-		t.Errorf("resolveInstallTarget = %q, want %q", got, want)
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("resolveInstallTargets = %v, want [%q]", got, want)
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/erdemtuna/craft/internal/fetch"
 	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/manifest"
-	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -137,7 +136,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		targetPath, err := resolveInstallTarget(installTarget)
+		targetPaths, err := resolveInstallTargets(installTarget)
 		if err != nil {
 			return err
 		}
@@ -147,34 +146,14 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if err := installlib.Install(targetPath, skillFiles); err != nil {
-			return fmt.Errorf("installation failed: %w", err)
+		for _, targetPath := range targetPaths {
+			if err := installlib.Install(targetPath, skillFiles); err != nil {
+				return fmt.Errorf("installation failed: %w", err)
+			}
 		}
 
-		cmd.Printf("Installed %d skill(s) to %s\n", countSkills(result), targetPath)
+		cmd.Printf("Installed %d skill(s) to %s\n", countSkills(result), strings.Join(targetPaths, ", "))
 	}
 
-	return nil
-}
-
-// hintWrap wraps an error with a hint if the error message matches known patterns.
-func hintWrap(err error, url string) error {
-	msg := err.Error()
-	switch {
-	case strings.Contains(msg, "repository not found") || strings.Contains(msg, "authentication"):
-		return fmt.Errorf("%w\n  hint: check the URL or set GITHUB_TOKEN for private repos", err)
-	case strings.Contains(msg, "no skills found") || strings.Contains(msg, "no SKILL.md"):
-		return fmt.Errorf("%w\n  hint: ensure the repo contains SKILL.md files", err)
-	default:
-		return err
-	}
-}
-
-// loadExistingPinfile loads craft.pin.yaml if it exists.
-func loadExistingPinfile(root string) *pinfile.Pinfile {
-	pfPath := filepath.Join(root, "craft.pin.yaml")
-	if pf, err := pinfile.ParseFile(pfPath); err == nil {
-		return pf
-	}
 	return nil
 }

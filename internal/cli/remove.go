@@ -101,7 +101,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		// Clean up orphaned skills from install target
 		if len(orphaned) > 0 {
-			targetPath, err := resolveInstallTarget(removeTarget)
+			targetPath, err := resolveInstallTargets(removeTarget)
 			if err != nil {
 				// If we can't determine target, just report what was orphaned
 				cmd.Printf("  orphaned skills (manual cleanup needed): %s\n", strings.Join(orphaned, ", "))
@@ -110,14 +110,29 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 			var cleaned []string
 			for _, skillName := range orphaned {
-				skillDir := filepath.Join(targetPath, skillName)
-				if _, err := os.Stat(skillDir); err == nil {
-					if err := os.RemoveAll(skillDir); err != nil {
-						cmd.PrintErrf("  warning: could not remove %s: %v\n", skillDir, err)
-					} else {
-						cleaned = append(cleaned, skillName)
+				for _, tp := range targetPath {
+					skillDir := filepath.Join(tp, skillName)
+					// Path traversal protection
+					absSkillDir, err := filepath.Abs(skillDir)
+					if err != nil {
+						continue
+					}
+					absTarget, err := filepath.Abs(tp)
+					if err != nil {
+						continue
+					}
+					if !strings.HasPrefix(absSkillDir, absTarget+string(filepath.Separator)) {
+						cmd.PrintErrf("  warning: skill name %q escapes target directory, skipping\n", skillName)
+						continue
+					}
+
+					if _, err := os.Stat(skillDir); err == nil {
+						if err := os.RemoveAll(skillDir); err != nil {
+							cmd.PrintErrf("  warning: could not remove %s: %v\n", skillDir, err)
+						}
 					}
 				}
+				cleaned = append(cleaned, skillName)
 			}
 
 			if len(cleaned) > 0 {

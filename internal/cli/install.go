@@ -86,34 +86,31 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine install path
-	targetPath, err := resolveInstallTarget(installTarget)
+	// Determine install path(s)
+	targetPaths, err := resolveInstallTargets(installTarget)
 	if err != nil {
 		return err
 	}
 
 	// Collect skill files for installation
-	total := len(result.Resolved)
-	for i, dep := range result.Resolved {
-		progress.UpdateCount("Fetching dependency", i+1, total)
-		_ = dep
-	}
 	skillFiles, err := collectSkillFiles(fetcher, result)
 	if err != nil {
 		progress.Fail("Fetching failed")
 		return err
 	}
 
-	// Install
+	// Install to each target path
 	progress.Update("Installing skills...")
-	if err := installlib.Install(targetPath, skillFiles); err != nil {
-		progress.Fail("Installation failed")
-		return fmt.Errorf("installation failed: %w", err)
+	for _, targetPath := range targetPaths {
+		if err := installlib.Install(targetPath, skillFiles); err != nil {
+			progress.Fail("Installation failed")
+			return fmt.Errorf("installation failed: %w", err)
+		}
 	}
 
 	skillCount := countSkills(result)
 	progress.Done(fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
-		skillCount, len(result.Resolved), targetPath))
+		skillCount, len(result.Resolved), strings.Join(targetPaths, ", ")))
 
 	// Print dependency tree to stderr
 	printDependencyTree(cmd, m, result)
@@ -147,26 +144,29 @@ func writePinfileAtomic(path string, pf *pinfile.Pinfile) error {
 	return nil
 }
 
-func resolveInstallTarget(target string) (string, error) {
+// resolveInstallTargets returns one or more install target paths.
+// If --target is provided, returns that single path.
+// If multiple agents detected on TTY, prompts and may return multiple paths.
+func resolveInstallTargets(target string) ([]string, error) {
 	if target != "" {
-		return target, nil
+		return []string{target}, nil
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("determining home directory: %w", err)
+		return nil, fmt.Errorf("determining home directory: %w", err)
 	}
 
 	// Try single-agent detection first
 	result, err := agent.Detect(home)
 	if err == nil {
-		return result.InstallPath, nil
+		return []string{result.InstallPath}, nil
 	}
 
 	// Check for multi-agent scenario
 	agents := agent.DetectAll(home)
 	if len(agents) == 0 {
-		return "", fmt.Errorf("no known AI agent detected\n  hint: use --target <path> to specify the installation directory")
+		return nil, fmt.Errorf("no known AI agent detected\n  hint: use --target <path> to specify the installation directory")
 	}
 
 	// Multiple agents detected — prompt if stdin is TTY
@@ -175,14 +175,14 @@ func resolveInstallTarget(target string) (string, error) {
 		for i, a := range agents {
 			names[i] = a.Agent.String()
 		}
-		return "", fmt.Errorf("multiple AI agents detected (%s)\n  hint: use --target <path> to specify the installation directory",
+		return nil, fmt.Errorf("multiple AI agents detected (%s)\n  hint: use --target <path> to specify the installation directory",
 			strings.Join(names, ", "))
 	}
 
 	return promptAgentChoice(agents)
 }
 
-func promptAgentChoice(agents []agent.DetectResult) (string, error) {
+func promptAgentChoice(agents []agent.DetectResult) ([]string, error) {
 	fmt.Fprintf(os.Stderr, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
 	for i, a := range agents {
 		fmt.Fprintf(os.Stderr, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
@@ -192,29 +192,28 @@ func promptAgentChoice(agents []agent.DetectResult) (string, error) {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
-		return "", fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
+		return nil, fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
 	}
 
 	choice := strings.TrimSpace(scanner.Text())
 
-	// "Both" selection — use first agent's path (install to both happens at caller level)
+	// "Both" selection — return all agent paths
 	bothChoice := fmt.Sprintf("%d", len(agents)+1)
 	if choice == bothChoice {
-		// For "both", return a comma-separated list that the caller splits
 		paths := make([]string, len(agents))
 		for i, a := range agents {
 			paths[i] = a.InstallPath
 		}
-		return strings.Join(paths, ","), nil
+		return paths, nil
 	}
 
 	// Parse numeric choice
 	var idx int
 	if _, err := fmt.Sscanf(choice, "%d", &idx); err != nil || idx < 1 || idx > len(agents) {
-		return "", fmt.Errorf("invalid choice %q\n  hint: enter a number from 1 to %d", choice, len(agents)+1)
+		return nil, fmt.Errorf("invalid choice %q\n  hint: enter a number from 1 to %d", choice, len(agents)+1)
 	}
 
-	return agents[idx-1].InstallPath, nil
+	return []string{agents[idx-1].InstallPath}, nil
 }
 
 // printDependencyTree prints a formatted dependency tree to stderr.

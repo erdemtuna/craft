@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/erdemtuna/craft/internal/fetch"
 	installlib "github.com/erdemtuna/craft/internal/install"
@@ -145,7 +146,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Install
 	progress.Update("Installing skills...")
-	targetPath, err := resolveInstallTarget(updateTarget)
+	targetPaths, err := resolveInstallTargets(updateTarget)
 	if err != nil {
 		return err
 	}
@@ -155,13 +156,15 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := installlib.Install(targetPath, skillFiles); err != nil {
-		progress.Fail("Installation failed")
-		return fmt.Errorf("installation failed: %w", err)
+	for _, targetPath := range targetPaths {
+		if err := installlib.Install(targetPath, skillFiles); err != nil {
+			progress.Fail("Installation failed")
+			return fmt.Errorf("installation failed: %w", err)
+		}
 	}
 
 	skillCount := countSkills(result)
-	progress.Done(fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, targetPath))
+	progress.Done(fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, strings.Join(targetPaths, ", ")))
 
 	// Print dependency tree to stderr
 	printDependencyTree(cmd, m, result)
