@@ -67,9 +67,9 @@ Narrative: A skill author wants to update their dependencies to pick up new vers
 Independent Test: Running `craft update` when a dependency has a newer tag available updates the pinfile and re-installs.
 
 Acceptance Scenarios:
-1. Given a dependency pinned at v1.0.0 and v1.1.0 available in the remote, When the user runs `craft update`, Then the dependency is re-resolved to v1.1.0, pinfile is updated, and skills are re-installed
-2. Given a specific dependency name, When the user runs `craft update <dep>`, Then only that dependency is updated; others remain at their pinned versions
-3. Given all dependencies already at latest versions, When the user runs `craft update`, Then the pinfile remains unchanged and the tool reports "all dependencies up to date"
+1. Given a dependency pinned at v1.0.0 and v1.1.0 available in the remote, When the user runs `craft update`, Then the dependency is re-resolved to v1.1.0, `craft.yaml` is updated to reference `@v1.1.0`, pinfile is updated, and skills are re-installed
+2. Given a specific dependency name, When the user runs `craft update <dep>`, Then only that dependency and its transitive closure are updated; other direct dependencies and their transitive closures remain at their pinned versions
+3. Given all dependencies already at latest versions, When the user runs `craft update`, Then the manifest and pinfile remain unchanged and the tool reports "all dependencies up to date"
 
 ### User Story P5 – Agent-Aware Installation
 
@@ -81,6 +81,7 @@ Acceptance Scenarios:
 1. Given Claude Code is detected (e.g., `~/.claude/` exists), When the user runs `craft install`, Then skills are installed to `~/.claude/skills/<skill-name>/`
 2. Given no known agent is detected, When the user runs `craft install`, Then the tool exits with an error suggesting `--target <path>`
 3. Given `--target /custom/path`, When the user runs `craft install --target /custom/path`, Then skills are installed to `/custom/path/<skill-name>/`
+4. Given both `~/.claude/` and `~/.copilot/` exist, When the user runs `craft install`, Then Claude Code takes precedence and skills are installed to `~/.claude/skills/<skill-name>/`
 
 ### User Story P6 – Global Cache
 
@@ -126,11 +127,11 @@ Acceptance Scenarios:
 - FR-004: Implement Minimum Version Selection — when multiple versions of the same dependency are required, select the minimum version satisfying all constraints (Stories: P2)
 - FR-005: Detect circular dependencies and report the full cycle path (Stories: P2)
 - FR-006: Detect skill name collisions across the full dependency tree and report both conflicting sources (Stories: P2)
-- FR-007: Compute SHA-256 integrity digests of resolved skill content (concatenated file contents sorted by path) (Stories: P1)
-- FR-008: Write resolved dependencies to `craft.pin.yaml` using existing pinfile types (Stories: P1)
+- FR-007: Compute SHA-256 integrity digests of resolved skill content — the digest covers the concatenated contents of all files within all skill directories exported by the dependency, with file paths relative to the repository root, sorted lexicographically (Stories: P1)
+- FR-008: Write resolved dependencies (both direct and transitive) to `craft.pin.yaml` using existing pinfile types, with transitive entries distinguished by a `source` field indicating the parent dependency that declared them (Stories: P1)
 - FR-009: Read existing `craft.pin.yaml` and skip re-resolution for dependencies whose manifest entries have not changed (Stories: P1, P6)
 - FR-010: Copy resolved skill directories to the target installation path as `<target>/<skill-name>/` (Stories: P1, P5)
-- FR-011: Auto-detect the user's AI agent by checking for known directory markers — `~/.claude/` for Claude Code (installs to `~/.claude/skills/`), `~/.copilot/` for GitHub Copilot (installs to `~/.copilot/skills/`) (Stories: P5)
+- FR-011: Auto-detect the user's AI agent by checking for known directory markers — `~/.claude/` for Claude Code (installs to `~/.claude/skills/`), `~/.copilot/` for GitHub Copilot (installs to `~/.copilot/skills/`). When multiple agents are detected, prefer Claude Code (first match in priority order). (Stories: P5)
 - FR-012: Support `--target <path>` flag on `craft install` and `craft update` to override auto-detected agent path (Stories: P5)
 - FR-013: Authenticate to private repositories using SSH keys (via ssh-agent) (Stories: P3)
 - FR-014: Authenticate to private repositories using environment tokens (`GITHUB_TOKEN`, `CRAFT_TOKEN`) via HTTPS — both tokens follow the same code path, `CRAFT_TOKEN` takes precedence if both are set (Stories: P3)
@@ -138,8 +139,8 @@ Acceptance Scenarios:
 - FR-016: Use cached repositories when available, falling back to network fetch only when cache misses; serve as offline fallback when network is unavailable (Stories: P6)
 - FR-021: Verify integrity of cached content on read; automatically re-fetch from network on integrity mismatch (Stories: P6)
 - FR-017: Auto-discover skills in dependency repos without `craft.yaml` by recursively scanning for `SKILL.md` files, treating each parent directory as a skill (Stories: P7)
-- FR-018: Re-resolve dependencies to the latest available semver tag via `craft update` (Stories: P4)
-- FR-019: Support selective update of a single dependency via `craft update <alias>` (Stories: P4)
+- FR-018: Re-resolve dependencies to the latest available semver tag via `craft update`; update `craft.yaml` dependency URLs to reflect the new version tags (manifest mutation, analogous to Go's `go get -u` modifying `go.mod`) (Stories: P4)
+- FR-019: Support selective update of a single dependency via `craft update <alias>` — re-resolve the targeted dependency and its transitive closure; preserve all other pinned entries unchanged (Stories: P4)
 - FR-020: Register `install` and `update` subcommands in the existing Cobra CLI (Stories: P1, P4)
 
 ### Key Entities

@@ -48,6 +48,8 @@ Running `craft update [dep]` re-resolves to the latest available semver tags.
 - Central registry or search/discovery (post-MVP)
 - Modifying existing Workflow 1 types or validation logic
 
+**Note**: Existing packages may be extended with new files (e.g., `pinfile/write.go`) and types may receive additive fields (e.g., `ResolvedEntry.Source` for transitive dep provenance). No breaking changes to existing APIs.
+
 ## Phase Status
 
 - [ ] **Phase 1: Foundation Types & Utilities** - Dep URL parser, pinfile writer, integrity digests, agent detection
@@ -70,13 +72,13 @@ Build the foundational types and utility functions that Phases 2–4 depend on. 
 
 - **`internal/resolve/depurl.go`** (new): Dependency URL parser — extract host, org, repo, and version from `host/org/repo@vMAJOR.MINOR.PATCH` format. Produce git clone URLs for both HTTPS (`https://host/org/repo.git`) and SSH (`git@host:org/repo.git`). Reuse the validated regex pattern from `internal/manifest/validate.go:19`.
 - **`internal/resolve/depurl_test.go`** (new): Table-driven tests covering valid URLs, edge cases (dots in org/repo names, multi-segment hosts), and invalid inputs.
-- **`internal/resolve/types.go`** (new): Core resolution types — `ResolvedDep` (URL, alias, commit SHA, integrity, discovered skill names, source manifest if transitive), `GraphNode` (package identity + edges), `AgentType` enum (ClaudeCode, Copilot, Unknown).
+- **`internal/resolve/types.go`** (new): Core resolution types — `ResolvedDep` (URL, alias, commit SHA, integrity, discovered skill names, source package URL for provenance, list of skill directory paths), `GraphNode` (package identity + edges), `AgentType` enum (ClaudeCode, Copilot, Unknown). Include a `PackageIdentity() string` method on the dep URL type that returns `host/org/repo` without version — used by MVS to identify same-package entries at different versions.
 - **`internal/pinfile/write.go`** (new): Serialize `Pinfile` to YAML with deterministic field ordering (pin_version first, resolved entries sorted by URL key). Follow the same yaml.Node pattern established in `internal/manifest/write.go:14-47`.
 - **`internal/pinfile/write_test.go`** (new): Round-trip test (write → parse → compare), deterministic ordering test, error path test with errWriter.
 - **`internal/integrity/digest.go`** (new): Compute SHA-256 integrity digest from a set of file paths and contents. Accept `map[string][]byte` (path → content), sort by path, concatenate, hash, return `sha256-<base64>` string. Follow the RFC specification.
 - **`internal/integrity/digest_test.go`** (new): Known-input/known-output tests, empty input test, ordering determinism test.
-- **`internal/agent/detect.go`** (new): Agent detection — check `~/.claude/` and `~/.copilot/` directory existence, return `AgentType` and default install path. Accept a home directory parameter for testability.
-- **`internal/agent/detect_test.go`** (new): Tests with temp directories simulating agent markers.
+- **`internal/agent/detect.go`** (new): Agent detection — check `~/.claude/` and `~/.copilot/` directory existence with deterministic precedence (Claude Code first, then Copilot). Return `AgentType` and default install path. When multiple agents detected, use first match. Error with detected-agent listing when none found. Accept a home directory parameter for testability.
+- **`internal/agent/detect_test.go`** (new): Tests with temp directories simulating agent markers, including multi-agent precedence and no-agent error.
 
 ### Success Criteria
 
@@ -101,13 +103,14 @@ Implement git operations behind a `GitFetcher` interface, with a go-git implemen
 - **`internal/fetch/fetcher.go`** (new): Define `GitFetcher` interface with three methods:
   - `ResolveRef(url, ref string) (commitSHA string, err error)` — resolve a tag/branch to a commit
   - `ListTags(url string) ([]string, error)` — list available tags from remote
+  - `ListTree(url, commitSHA string) ([]string, error)` — list all file paths in the repo tree at a specific commit (needed for auto-discovery of SKILL.md in repos without craft.yaml)
   - `ReadFiles(url, commitSHA string, paths []string) (map[string][]byte, error)` — read file contents at a specific commit
   
   Implement `GoGitFetcher` struct satisfying this interface using go-git's bare clone and in-memory worktree operations. The fetcher coordinates with cache (check cache first, clone/fetch on miss, store result).
-- **`internal/fetch/cache.go`** (new): Global cache at `~/.craft/cache/`. Cache bare git repos keyed by a sanitized version of the repository URL (e.g., `github.com/org/repo` → `github.com-org-repo/`). On cache hit, open existing bare repo and fetch latest; on miss, bare clone. Atomic directory operations (clone to temp, rename on success). Accept a configurable cache root for testability.
+- **`internal/fetch/cache.go`** (new): Global cache at `~/.craft/cache/`. Cache bare git repos keyed by a sanitized version of the repository URL (e.g., `github.com/org/repo` → `github.com-org-repo/`). On cache hit, open existing bare repo and fetch latest; on miss, bare clone. Atomic directory operations (clone to temp within cache root for same-filesystem guarantee, rename on success, deferred cleanup on failure). Accept a configurable cache root for testability. Include integrity verification on read: after checking out files for a resolved dependency, verify computed digest against the expected pinfile digest; on mismatch, invalidate the cache entry, re-fetch from network, and warn about potential corruption. Define explicit failure matrix: (cache valid → use), (cache corrupted → re-fetch + warn), (cache miss + online → fetch + store), (cache miss + offline → error with suggestion).
 - **`internal/fetch/auth.go`** (new): Authentication provider — check `CRAFT_TOKEN` (highest priority), then `GITHUB_TOKEN`, then SSH agent. Return appropriate go-git transport auth object. Clear error messages when auth fails ("authentication failed — set GITHUB_TOKEN or configure SSH keys").
 - **`internal/fetch/fetcher_test.go`** (new): Unit tests using the `GitFetcher` interface with a mock implementation for resolution tests. Integration-style test that clones a known public repo (small fixture repo) — guarded by build tag or env var to skip in CI without network.
-- **`internal/fetch/cache_test.go`** (new): Tests with temp cache directories — store, lookup, miss, concurrent-safe atomic writes.
+- **`internal/fetch/cache_test.go`** (new): Tests with temp cache directories — store, lookup, miss, concurrent-safe atomic writes, integrity verification (valid cache, corrupted cache triggers re-fetch), offline fallback (cache hit succeeds, cache miss errors).
 - **`internal/fetch/auth_test.go`** (new): Tests for token precedence (CRAFT_TOKEN > GITHUB_TOKEN), SSH fallback, no-auth error message.
 
 ### Success Criteria
@@ -133,15 +136,18 @@ Implement the MVS dependency resolution algorithm, dependency graph with cycle d
 - **`internal/resolve/graph_test.go`** (new): Tests for acyclic graph, single cycle, nested cycles, diamond dependencies, self-loop.
 - **`internal/resolve/resolver.go`** (new): Resolution orchestrator implementing the MVS algorithm.
   - Accept `GitFetcher` interface (from Phase 2), root `Manifest`, and optional existing `Pinfile`
-  - For each dependency in manifest: check if pinfile has a matching entry (skip re-resolution if URL unchanged); otherwise resolve ref → commit via fetcher
+  - **Pinfile reuse policy**: `craft install` may short-circuit via pinfile reuse when manifest entry is unchanged; `craft update` always bypasses reuse for targeted dependencies (or all for full update)
+  - For each dependency in manifest: check if pinfile has a matching entry with unchanged URL (skip re-resolution for install); otherwise resolve ref → commit via fetcher
   - Recursively resolve transitive deps: read dependency's `craft.yaml` (via `ReadFiles`), parse with `manifest.Parse`, recurse
   - Build dependency graph; run cycle detection before proceeding
-  - Apply MVS: when the same dependency URL (ignoring version) appears at multiple versions, select the highest (minimum version satisfying all constraints)
-  - Auto-discover skills: if dependency has no `craft.yaml`, scan for SKILL.md files via `ReadFiles` on the repo tree
-  - Detect skill name collisions across all resolved packages
-  - Compute integrity digests for each resolved dependency
+  - Apply MVS: use `PackageIdentity()` from depurl parser to identify same-package entries at different versions; select the highest (minimum version satisfying all constraints)
+  - Auto-discover skills: if dependency has no `craft.yaml`, use `ListTree` to find SKILL.md files, then `ReadFiles` to read their content
+  - Detect skill name collisions across all resolved packages — error messages include provenance (source URL, commit, skill path)
+  - Compute integrity digests for each resolved dependency (all files in all skill directories, sorted by relative path)
+  - **Selective update boundary**: when updating a single alias, re-resolve only that dependency and its transitive closure; preserve all other direct deps and their transitive closures from existing pinfile
+  - Write transitive deps to pinfile using their own dep URL as key, with `Source` field indicating the parent that declared them
   - Return `[]ResolvedDep` and assembled `Pinfile`
-- **`internal/resolve/discover.go`** (new): Skill discovery for in-memory file trees from git. Accept file listing from a git tree, identify directories containing `SKILL.md`, parse frontmatter from content bytes using `skill.ParseFrontmatter(io.Reader)`. Analogous to `internal/init/discover.go` but operating on `map[string][]byte` rather than filesystem.
+- **`internal/resolve/discover.go`** (new): Skill discovery for in-memory file trees from git. Accept file listing (from `ListTree`) and file contents (from `ReadFiles`), identify directories containing `SKILL.md`, parse frontmatter from content bytes using `skill.ParseFrontmatter(io.Reader)`. Filter `ListTree` output for paths ending in `SKILL.md`, then read those files.
 - **`internal/resolve/discover_test.go`** (new): Tests with in-memory file maps simulating repos with/without craft.yaml, with/without SKILL.md files.
 - **`internal/resolve/resolver_test.go`** (new): Comprehensive tests using mock `GitFetcher`:
   - Simple single-dependency resolution
@@ -179,12 +185,15 @@ Wire everything together into the `craft install` and `craft update` CLI command
   - Error handling: wrap all errors with actionable context
   - Exit with "no dependencies to install" message for empty deps map
 - **`internal/cli/update.go`** (new): `craft update [alias]` Cobra command with `--target` flag.
-  - If alias provided: re-resolve only that dependency to its latest semver tag via `ListTags`; preserve other pinned entries
+  - If alias provided: re-resolve only that dependency and its transitive closure to latest semver tags via `ListTags`; preserve other pinned entries
   - If no alias: re-resolve all dependencies to latest tags
+  - **Manifest mutation**: update `craft.yaml` dependency URLs to reflect the new version tags (using atomic write via existing `manifest.Write` + temp+rename). This preserves manifest-as-truth and keeps the validate runner's consistency check valid.
   - Same pipeline as install for pinfile write and skill installation
   - Report "all dependencies up to date" when nothing changed
 - **`internal/cli/root.go`**: Add `rootCmd.AddCommand(installCmd)` and `rootCmd.AddCommand(updateCmd)` in the `init()` function
-- **`internal/cli/install_test.go`** (new): Integration tests using test fixtures — mock git fetcher wired into the command, verify pinfile output and installed directory structure
+- **`internal/pinfile/types.go`**: Add `Source string \`yaml:"source,omitempty"\`` field to `ResolvedEntry` — empty for direct dependencies, set to the parent dependency URL for transitive entries
+- **`internal/validate/runner.go`**: Update `checkPinfile` consistency check to tolerate transitive pinfile entries (entries with non-empty `Source` field are not required to match manifest dependency URLs)
+- **`internal/cli/install_test.go`** (new): Integration tests using test fixtures — mock git fetcher wired into the command, verify pinfile output (both direct and transitive entries) and installed directory structure
 - **`internal/cli/update_test.go`** (new): Integration tests — update single dep, update all deps, already-at-latest scenario
 
 ### Success Criteria
