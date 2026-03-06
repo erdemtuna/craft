@@ -145,7 +145,7 @@ For the full specification and a real-world example, see [Anthropic's skill-crea
 
 ## Acknowledgments
 
-This project wouldn't exist without [Rob Emanuele](https://github.com/lossyrob)'s [PAW (Phased Agent Workflow)](https://github.com/lossyrob/phased-agent-workflow). Working with PAW — writing new skills, extending existing ones, watching them grow in complexity — is what made the dependency problem impossible to ignore. When your skills start depending on other skills and there's no way to say so, you feel it. craft is the answer to that friction.
+This project wouldn't exist without [Rob Emanuele](https://github.com/lossyrob)'s [PAW (Phased Agent Workflow)](https://github.com/lossyrob/phased-agent-workflow). Working with PAW — writing new skills, extending existing ones — made me realize the dependency problem.
 
 ## License
 
