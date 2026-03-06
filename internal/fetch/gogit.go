@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -256,12 +255,6 @@ func NormalizeCloneURL(packageIdentity string) string {
 	return "https://" + packageIdentity + ".git"
 }
 
-// cacheSubdir returns the path within cache root for temp directories.
-// Ensures temp dirs are on the same filesystem as final destination.
-func (c *Cache) tempDir() (string, error) {
-	return os.MkdirTemp(c.Root, "tmp-*")
-}
-
 // Remove deletes a cached repository (used for cache invalidation).
 func (c *Cache) Remove(repoURL string) error {
 	path := c.RepoPath(repoURL)
@@ -269,11 +262,4 @@ func (c *Cache) Remove(repoURL string) error {
 		return nil
 	}
 	return os.RemoveAll(path)
-}
-
-// CacheDir returns the full path to a specific cached repo dir.
-// Exposed for the resolver's integrity verification logic.
-func (c *Cache) CacheDir(repoURL string) string {
-	dir := filepath.Join(c.Root, sanitizeURL(repoURL))
-	return dir
 }

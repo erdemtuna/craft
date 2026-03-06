@@ -53,13 +53,7 @@ func DiscoverSkills(allPaths []string, readFile func(path string) ([]byte, error
 		}
 		for _, p := range allPaths {
 			if prefix == "" || strings.HasPrefix(p, prefix) {
-				// For root-level SKILL.md, include all files
-				// For subdirectory SKILL.md, include only files in that dir tree
-				if prefix == "" {
-					dirFiles = append(dirFiles, p)
-				} else {
-					dirFiles = append(dirFiles, p)
-				}
+				dirFiles = append(dirFiles, p)
 			}
 		}
 
