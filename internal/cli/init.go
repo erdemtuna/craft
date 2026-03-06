@@ -18,7 +18,7 @@ var initCmd = &cobra.Command{
 			return err
 		}
 
-		wizard := initcmd.NewWizard(root, os.Stdin, cmd.OutOrStdout(), os.Stderr)
+		wizard := initcmd.NewWizard(root, os.Stdin, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		return wizard.Run()
 	},
 }

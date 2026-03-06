@@ -147,11 +147,7 @@ func (w *Wizard) Run() error {
 
 // prompt displays a prompt and returns the user's input or the default value.
 func (w *Wizard) prompt(scanner *bufio.Scanner, label, defaultVal string) (string, error) {
-	if defaultVal != "" {
-		fmt.Fprintf(w.Out, "%s: ", label)
-	} else {
-		fmt.Fprintf(w.Out, "%s: ", label)
-	}
+	fmt.Fprintf(w.Out, "%s: ", label)
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
