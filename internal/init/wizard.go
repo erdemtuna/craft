@@ -132,7 +132,7 @@ func (w *Wizard) Run() error {
 	}
 
 	if err := manifest.Write(m, f); err != nil {
-		f.Close()
+		_ = f.Close()
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
 	}
@@ -147,8 +147,8 @@ func (w *Wizard) Run() error {
 		return fmt.Errorf("saving craft.yaml: %w", err)
 	}
 
-	fmt.Fprintln(w.Out)
-	fmt.Fprintf(w.Out, "Created craft.yaml for package %q (%s)\n", name, version)
+	_, _ = fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintf(w.Out, "Created craft.yaml for package %q (%s)\n", name, version)
 
 	return nil
 }
@@ -156,7 +156,7 @@ func (w *Wizard) Run() error {
 // prompt displays a prompt and returns the user's input or the default value.
 // The returned bool is true when the default was returned due to EOF (no more input available).
 func (w *Wizard) prompt(scanner *bufio.Scanner, label, defaultVal string) (string, bool, error) {
-	fmt.Fprintf(w.Out, "%s: ", label)
+	_, _ = fmt.Fprintf(w.Out, "%s: ", label)
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
@@ -185,7 +185,7 @@ func (w *Wizard) promptValidated(scanner *bufio.Scanner, label, defaultVal strin
 			if eof {
 				return "", fmt.Errorf("reached end of input with invalid default %q: %w", defaultVal, verr)
 			}
-			fmt.Fprintf(w.ErrOut, "  invalid: %v\n", verr)
+			_, _ = fmt.Fprintf(w.ErrOut, "  invalid: %v\n", verr)
 			continue
 		}
 
@@ -202,7 +202,7 @@ func (w *Wizard) promptYesNo(scanner *bufio.Scanner, label string, defaultVal bo
 	}
 
 	for {
-		fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
+		_, _ = fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
 
 		if !scanner.Scan() {
 			return defaultVal, scanner.Err()
@@ -217,7 +217,7 @@ func (w *Wizard) promptYesNo(scanner *bufio.Scanner, label string, defaultVal bo
 		case "":
 			return defaultVal, nil
 		default:
-			fmt.Fprintln(w.ErrOut, "  Please answer y or n.")
+			_, _ = fmt.Fprintln(w.ErrOut, "  Please answer y or n.")
 		}
 	}
 }

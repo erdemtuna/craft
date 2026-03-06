@@ -10,9 +10,15 @@ func TestCacheCleanRemovesCache(t *testing.T) {
 	// Create a temporary cache directory with some fake repos
 	tmpDir := t.TempDir()
 	cacheDir := filepath.Join(tmpDir, ".craft", "cache")
-	os.MkdirAll(filepath.Join(cacheDir, "repo1"), 0o700)
-	os.MkdirAll(filepath.Join(cacheDir, "repo2"), 0o700)
-	os.WriteFile(filepath.Join(cacheDir, "repo1", "HEAD"), []byte("ref: refs/heads/main"), 0o644)
+	if err := os.MkdirAll(filepath.Join(cacheDir, "repo1"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(cacheDir, "repo2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cacheDir, "repo1", "HEAD"), []byte("ref: refs/heads/main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify setup
 	entries, _ := os.ReadDir(cacheDir)

@@ -77,7 +77,7 @@ func Install(target string, skills map[string]map[string][]byte) error {
 		}
 
 		if err := os.Rename(stagingDir, skillDir); err != nil {
-			os.RemoveAll(stagingDir)
+			_ = os.RemoveAll(stagingDir)
 			return fmt.Errorf("installing skill %q: %w", skillName, err)
 		}
 	}

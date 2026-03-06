@@ -109,18 +109,18 @@ func writePinfileAtomic(path string, pf *pinfile.Pinfile) error {
 	}
 
 	if err := pinfile.Write(pf, f); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing pinfile: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("writing pinfile: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("saving pinfile: %w", err)
 	}
 

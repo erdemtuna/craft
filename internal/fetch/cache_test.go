@@ -51,7 +51,9 @@ func TestCacheRemove(t *testing.T) {
 	url := "https://github.com/org/repo.git"
 	repoPath := cache.RepoPath(url)
 
-	os.MkdirAll(repoPath, 0o755)
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if !cache.Has(url) {
 		t.Fatal("Setup: expected cache hit")
 	}
