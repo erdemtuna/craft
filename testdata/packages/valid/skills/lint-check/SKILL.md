@@ -1,7 +1,6 @@
 ---
 name: lint-check
 description: Automated linting and code style enforcement. Use when users want to check code quality, fix formatting issues, or enforce coding standards across a project.
-license: MIT
 ---
 
 # Lint Check

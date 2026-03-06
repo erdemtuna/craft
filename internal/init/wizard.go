@@ -83,13 +83,13 @@ func (w *Wizard) Run() error {
 	}
 
 	// Prompt for description (no validation)
-	description, err := w.prompt(scanner, "Description", "")
+	description, _, err := w.prompt(scanner, "Description", "")
 	if err != nil {
 		return err
 	}
 
 	// Prompt for license (no validation)
-	license, err := w.prompt(scanner, "License", "")
+	license, _, err := w.prompt(scanner, "License", "")
 	if err != nil {
 		return err
 	}
@@ -124,15 +124,27 @@ func (w *Wizard) Run() error {
 		Skills:        skills,
 	}
 
-	// Write manifest
-	f, err := os.Create(manifestPath)
+	// Write manifest atomically: write to temp file, then rename on success.
+	tmpPath := manifestPath + ".tmp"
+	f, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("creating craft.yaml: %w", err)
 	}
-	defer f.Close()
 
 	if err := manifest.Write(m, f); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("writing craft.yaml: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing craft.yaml: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, manifestPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("saving craft.yaml: %w", err)
 	}
 
 	fmt.Fprintln(w.Out)
@@ -142,32 +154,37 @@ func (w *Wizard) Run() error {
 }
 
 // prompt displays a prompt and returns the user's input or the default value.
-func (w *Wizard) prompt(scanner *bufio.Scanner, label, defaultVal string) (string, error) {
+// The returned bool is true when the default was returned due to EOF (no more input available).
+func (w *Wizard) prompt(scanner *bufio.Scanner, label, defaultVal string) (string, bool, error) {
 	fmt.Fprintf(w.Out, "%s: ", label)
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("reading input: %w", err)
+			return "", false, fmt.Errorf("reading input: %w", err)
 		}
-		return defaultVal, nil
+		return defaultVal, true, nil
 	}
 
 	val := strings.TrimSpace(scanner.Text())
 	if val == "" {
-		return defaultVal, nil
+		return defaultVal, false, nil
 	}
-	return val, nil
+	return val, false, nil
 }
 
 // promptValidated displays a prompt and validates input, retrying on invalid input.
+// Returns an error if EOF is reached and the default value itself is invalid.
 func (w *Wizard) promptValidated(scanner *bufio.Scanner, label, defaultVal string, validate func(string) error) (string, error) {
 	for {
-		val, err := w.prompt(scanner, label, defaultVal)
+		val, eof, err := w.prompt(scanner, label, defaultVal)
 		if err != nil {
 			return "", err
 		}
 
 		if verr := validate(val); verr != nil {
+			if eof {
+				return "", fmt.Errorf("reached end of input with invalid default %q: %w", defaultVal, verr)
+			}
 			fmt.Fprintf(w.ErrOut, "  invalid: %v\n", verr)
 			continue
 		}
@@ -177,28 +194,31 @@ func (w *Wizard) promptValidated(scanner *bufio.Scanner, label, defaultVal strin
 }
 
 // promptYesNo asks a yes/no question and returns the boolean answer.
+// Re-prompts on unrecognized input.
 func (w *Wizard) promptYesNo(scanner *bufio.Scanner, label string, defaultVal bool) (bool, error) {
 	defaultStr := "y/N"
 	if defaultVal {
 		defaultStr = "Y/n"
 	}
 
-	fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
+	for {
+		fmt.Fprintf(w.Out, "%s [%s]: ", label, defaultStr)
 
-	if !scanner.Scan() {
-		return defaultVal, scanner.Err()
-	}
+		if !scanner.Scan() {
+			return defaultVal, scanner.Err()
+		}
 
-	val := strings.TrimSpace(strings.ToLower(scanner.Text()))
-	switch val {
-	case "y", "yes":
-		return true, nil
-	case "n", "no":
-		return false, nil
-	case "":
-		return defaultVal, nil
-	default:
-		return defaultVal, nil
+		val := strings.TrimSpace(strings.ToLower(scanner.Text()))
+		switch val {
+		case "y", "yes":
+			return true, nil
+		case "n", "no":
+			return false, nil
+		case "":
+			return defaultVal, nil
+		default:
+			fmt.Fprintln(w.ErrOut, "  Please answer y or n.")
+		}
 	}
 }
 

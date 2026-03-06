@@ -1,7 +1,6 @@
 ---
 name: duplicate-name
 description: First skill with a deliberately duplicated name for collision detection testing.
-license: MIT
 ---
 
 # Skill A

@@ -205,13 +205,107 @@ skills:
 	}
 
 	// Create a SKILL.md so the directory is recognized
-	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: cyclic\n---\n"), 0o644)
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: cyclic\ndescription: A cyclic symlink test skill.\n---\n"), 0o644)
 
 	runner := NewRunner(root)
 	result := runner.Run()
 
-	// Should complete without hanging — that's the main assertion.
-	// The result may or may not have errors depending on how os.Stat
-	// handles the cycle, but it must NOT loop infinitely.
-	_ = result
+	// The skill directory itself is valid (it exists and has SKILL.md);
+	// the cycle is inside the directory and doesn't affect validation.
+	if !result.OK() {
+		t.Errorf("Expected no errors for valid skill with internal symlink cycle, got:")
+		for _, e := range result.Errors {
+			t.Errorf("  %s", e.Error())
+		}
+	}
+}
+
+func TestErrorFormatting(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *Error
+		want string
+	}{
+		{
+			name: "path and field",
+			err: &Error{
+				Category: CategorySchema,
+				Path:     "craft.yaml",
+				Field:    "name",
+				Message:  "invalid value",
+			},
+			want: "[schema] craft.yaml: name: invalid value",
+		},
+		{
+			name: "path only",
+			err: &Error{
+				Category: CategorySkillPath,
+				Path:     "./skills/a",
+				Message:  "directory does not exist",
+			},
+			want: "[skill-path] ./skills/a: directory does not exist",
+		},
+		{
+			name: "field only",
+			err: &Error{
+				Category: CategoryCollision,
+				Field:    "my-skill",
+				Message:  "name collision",
+			},
+			want: "[collision] my-skill: name collision",
+		},
+		{
+			name: "no path or field",
+			err: &Error{
+				Category: CategorySafety,
+				Message:  "general error",
+			},
+			want: "[safety] general error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.Error()
+			if got != tt.want {
+				t.Errorf("Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDuplicateSkillPath(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a skill directory
+	skillDir := filepath.Join(root, "skills", "my-skill")
+	os.MkdirAll(skillDir, 0o755)
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: my-skill\ndescription: A test skill.\n---\n"), 0o644)
+
+	// Create a manifest with duplicate paths
+	manifestContent := `schema_version: 1
+name: dup-test
+version: 1.0.0
+skills:
+  - ./skills/my-skill
+  - ./skills/my-skill
+`
+	os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644)
+
+	runner := NewRunner(root)
+	result := runner.Run()
+
+	if result.OK() {
+		t.Fatal("Expected errors for duplicate skill paths")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Message, "duplicate skill path") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("Expected 'duplicate skill path' error")
+	}
 }

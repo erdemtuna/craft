@@ -1,7 +1,6 @@
 ---
 name: exists
 description: A skill that exists for testing missing-skill-path scenarios.
-license: MIT
 ---
 
 # Exists

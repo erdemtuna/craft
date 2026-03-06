@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -125,5 +126,77 @@ func TestWriteOmitsEmpty(t *testing.T) {
 	}
 	if strings.Contains(output, "metadata") {
 		t.Error("Empty metadata should be omitted")
+	}
+}
+
+func TestWriteMapKeyOrder(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "key-order",
+		Version:       "1.0.0",
+		Skills:        []string{"./skill"},
+		Dependencies: map[string]string{
+			"charlie": "github.com/org/charlie@v1.0.0",
+			"alpha":   "github.com/org/alpha@v1.0.0",
+			"bravo":   "github.com/org/bravo@v1.0.0",
+		},
+		Metadata: map[string]string{
+			"zebra": "z",
+			"apple": "a",
+			"mango": "m",
+		},
+	}
+
+	// Write multiple times and verify output is identical (deterministic)
+	var first string
+	for i := 0; i < 5; i++ {
+		var buf bytes.Buffer
+		if err := Write(m, &buf); err != nil {
+			t.Fatalf("Write failed on iteration %d: %v", i, err)
+		}
+		if i == 0 {
+			first = buf.String()
+		} else if buf.String() != first {
+			t.Fatalf("Non-deterministic output on iteration %d:\nfirst:\n%s\ngot:\n%s", i, first, buf.String())
+		}
+	}
+
+	// Verify keys are sorted alphabetically
+	alphaIdx := strings.Index(first, "alpha")
+	bravoIdx := strings.Index(first, "bravo")
+	charlieIdx := strings.Index(first, "charlie")
+	if alphaIdx >= bravoIdx || bravoIdx >= charlieIdx {
+		t.Errorf("Dependencies keys not sorted: alpha@%d, bravo@%d, charlie@%d", alphaIdx, bravoIdx, charlieIdx)
+	}
+
+	appleIdx := strings.Index(first, "apple")
+	mangoIdx := strings.Index(first, "mango")
+	zebraIdx := strings.Index(first, "zebra")
+	if appleIdx >= mangoIdx || mangoIdx >= zebraIdx {
+		t.Errorf("Metadata keys not sorted: apple@%d, mango@%d, zebra@%d", appleIdx, mangoIdx, zebraIdx)
+	}
+}
+
+// errWriter is an io.Writer that always returns an error.
+type errWriter struct{}
+
+func (errWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("simulated write failure")
+}
+
+func TestWriteError(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "err-test",
+		Version:       "1.0.0",
+		Skills:        []string{"./skill"},
+	}
+
+	err := Write(m, errWriter{})
+	if err == nil {
+		t.Fatal("Expected error from Write with failing writer")
+	}
+	if !strings.Contains(err.Error(), "writing manifest YAML") {
+		t.Errorf("Expected wrapped error, got: %v", err)
 	}
 }

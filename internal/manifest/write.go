@@ -3,6 +3,7 @@ package manifest
 import (
 	"fmt"
 	"io"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -78,18 +79,24 @@ func addStringSlice(mapping *yaml.Node, key string, values []string) {
 	mapping.Content = append(mapping.Content, keyNode, seqNode)
 }
 
-// addStringMap adds a map[string]string as a mapping node.
+// addStringMap adds a map[string]string as a mapping node with sorted keys.
 func addStringMap(mapping *yaml.Node, key string, m map[string]string) {
 	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
 	mapNode := &yaml.Node{Kind: yaml.MappingNode}
 
-	for k, v := range m {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
 		mapNode.Content = append(mapNode.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
 			Value: k,
 		}, &yaml.Node{
 			Kind:  yaml.ScalarNode,
-			Value: v,
+			Value: m[k],
 		})
 	}
 

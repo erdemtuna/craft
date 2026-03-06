@@ -1,7 +1,6 @@
 ---
 name: review-pr
 description: Review pull requests for correctness, security, and maintainability. Use when users want a code review, need to check PR changes, or want feedback on their implementation.
-license: MIT
 ---
 
 # Review PR

@@ -96,8 +96,21 @@ func (r *Runner) checkManifest(result *Result) *manifest.Manifest {
 // Returns a map of skill name → list of paths that export that name.
 func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]string {
 	skillNames := make(map[string][]string)
+	seen := make(map[string]bool)
 
 	for _, skillPath := range m.Skills {
+		cleaned := filepath.Clean(skillPath)
+		if seen[cleaned] {
+			result.Errors = append(result.Errors, &Error{
+				Category:   CategorySchema,
+				Path:       skillPath,
+				Message:    "duplicate skill path in manifest",
+				Suggestion: "Remove the duplicate entry from skills[]",
+			})
+			continue
+		}
+		seen[cleaned] = true
+
 		// Check 6: Skill path safety — must be relative, within package root
 		if filepath.IsAbs(skillPath) {
 			result.Errors = append(result.Errors, &Error{
@@ -110,7 +123,6 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 		}
 
 		// Check for path traversal
-		cleaned := filepath.Clean(skillPath)
 		if strings.HasPrefix(cleaned, "..") {
 			result.Errors = append(result.Errors, &Error{
 				Category:   CategorySafety,
@@ -157,13 +169,22 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 
 		// Check for SKILL.md
 		skillMDPath := filepath.Join(absPath, "SKILL.md")
-		if _, err := os.Stat(skillMDPath); os.IsNotExist(err) {
-			result.Errors = append(result.Errors, &Error{
-				Category:   CategorySkillPath,
-				Path:       skillPath,
-				Message:    "directory does not contain a SKILL.md file",
-				Suggestion: "Add a SKILL.md file with YAML frontmatter to this directory",
-			})
+		if _, err := os.Stat(skillMDPath); err != nil {
+			if os.IsNotExist(err) {
+				result.Errors = append(result.Errors, &Error{
+					Category:   CategorySkillPath,
+					Path:       skillPath,
+					Message:    "directory does not contain a SKILL.md file",
+					Suggestion: "Add a SKILL.md file with YAML frontmatter to this directory",
+				})
+			} else {
+				result.Errors = append(result.Errors, &Error{
+					Category:   CategorySkillPath,
+					Path:       filepath.Join(skillPath, "SKILL.md"),
+					Message:    fmt.Sprintf("cannot access SKILL.md: %v", err),
+					Suggestion: "Check filesystem permissions for this file",
+				})
+			}
 			continue
 		}
 
