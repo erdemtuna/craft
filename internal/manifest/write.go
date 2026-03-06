@@ -7,21 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// fieldOrder defines the canonical ordering of top-level manifest fields
-// for consistent serialization output.
-var fieldOrder = []string{
-	"schema_version",
-	"name",
-	"version",
-	"description",
-	"license",
-	"skills",
-	"dependencies",
-	"metadata",
-}
-
 // Write serializes a Manifest to the given writer in YAML format
-// with consistent field ordering.
+// with consistent field ordering: schema_version, name, version,
+// description, license, skills, dependencies, metadata.
 func Write(m *Manifest, w io.Writer) error {
 	// Build an ordered YAML document using yaml.v3 nodes for field ordering.
 	doc := &yaml.Node{Kind: yaml.DocumentNode}

@@ -1,6 +1,9 @@
 package manifest
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateValid(t *testing.T) {
 	m := &Manifest{
@@ -134,7 +137,7 @@ func TestValidateEmptySkills(t *testing.T) {
 	errs := Validate(m)
 	found := false
 	for _, e := range errs {
-		if contains(e.Error(), "skills") {
+		if strings.Contains(e.Error(), "skills") {
 			found = true
 		}
 	}
@@ -170,7 +173,7 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 			errs := Validate(m)
 			hasDepErr := false
 			for _, e := range errs {
-				if contains(e.Error(), "dependencies") {
+				if strings.Contains(e.Error(), "dependencies") {
 					hasDepErr = true
 				}
 			}
@@ -199,20 +202,7 @@ func TestValidateMultipleErrors(t *testing.T) {
 
 func assertContains(t *testing.T, s, substr string) {
 	t.Helper()
-	if !contains(s, substr) {
+	if !strings.Contains(s, substr) {
 		t.Errorf("Expected %q to contain %q", s, substr)
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
