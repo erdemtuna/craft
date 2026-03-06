@@ -100,7 +100,7 @@ A working `craft` CLI binary with three commands:
 - **`internal/manifest/validate.go`**: `Validate(m *Manifest) []error` — validate schema_version is 1, name is present and matches `[a-z][a-z0-9]*(-[a-z0-9]+)*` (1–128 chars), version matches semver `MAJOR.MINOR.PATCH`, skills array is non-empty, dependency URL format `host/org/repo@version` for each entry
 - **`internal/manifest/write.go`**: `Write(m *Manifest, w io.Writer) error` — serialize manifest to YAML with consistent field ordering (schema_version, name, version, description, license, skills, dependencies, metadata)
 - **`internal/pinfile/parse.go`**: `Parse(r io.Reader) (*Pinfile, error)` — YAML parsing. `ParseFile(path string) (*Pinfile, error)` convenience wrapper
-- **`internal/pinfile/validate.go`**: `Validate(p *Pinfile) []error` — validate pin_version is 1, resolved map entries have required fields (commit, integrity)
+- **`internal/pinfile/validate.go`**: `Validate(p *Pinfile) []error` — validate pin_version is 1, resolved map entries have required fields (commit, integrity, skills). Covers structural half of FR-005; consistency checking deferred to Phase 3
 - **`internal/skill/frontmatter.go`**: `ParseFrontmatter(r io.Reader) (*Frontmatter, error)` — extract YAML block between `---` delimiters at file start, parse YAML, return structured frontmatter. Handle: no delimiters (error), malformed YAML (error with parse details), missing delimiters (error)
 - **`internal/skill/validate.go`**: `ValidateFrontmatter(fm *Frontmatter) []error` — name is present, name matches naming convention (same as package name format)
 - **Tests** (colocated `_test.go` files in each package):
@@ -108,7 +108,7 @@ A working `craft` CLI binary with three commands:
   - `internal/manifest/validate_test.go`: Valid name/version, invalid name formats (uppercase, spaces, leading/trailing hyphens), invalid semver, empty skills array, valid/invalid dependency URLs
   - `internal/manifest/write_test.go`: Round-trip parse→write→parse produces equivalent manifest
   - `internal/pinfile/parse_test.go`: Valid pinfile, missing fields, malformed YAML
-  - `internal/pinfile/validate_test.go`: Valid structure, missing commit/integrity fields
+  - `internal/pinfile/validate_test.go`: Valid structure, missing commit/integrity/skills fields
   - `internal/skill/frontmatter_test.go`: Valid frontmatter, no delimiters, missing name, malformed YAML, extra fields accepted
   - `internal/skill/validate_test.go`: Valid skill name, invalid formats
 - **`testdata/`**: YAML fixture files for parser tests — valid and invalid manifests, pinfiles, and SKILL.md files
@@ -134,7 +134,7 @@ A working `craft` CLI binary with three commands:
   - Check 1: Parse and validate craft.yaml schema (manifest package)
   - Check 2: For each skill path — verify directory exists, verify SKILL.md exists, parse frontmatter, validate frontmatter (skill package)
   - Check 3: Validate dependency URL format for each dependency entry (manifest package)
-  - Check 4: If craft.pin.yaml exists — parse, validate structure, check consistency with manifest dependencies (each manifest dep has a pin entry and vice versa). If no dependencies but pinfile exists — warning
+  - Check 4: If craft.pin.yaml exists — parse, validate structure, check consistency with manifest dependencies (completes FR-005 consistency aspect: each manifest dep has a pin entry and vice versa). If no dependencies but pinfile exists — warning
   - Check 5: Name collision detection — collect all skill names from frontmatter across all skill paths, report duplicates with both conflicting paths
   - Check 6: Skill path safety — paths must be relative and within the package root (no `../` escapes)
   - Check 7: Symlink cycle detection — gracefully handle circular symlinks in skill directory paths without infinite loops, reporting a clear error
@@ -166,6 +166,7 @@ A working `craft` CLI binary with three commands:
 - [ ] Each error message includes: what failed, where (file/field/path), and how to fix it
 - [ ] `craft validate` with no craft.yaml reports "no manifest found" error
 - [ ] Symlink cycles in skill paths handled gracefully (no infinite loop, clear error)
+- [ ] `craft validate --help` prints usage and exits 0
 
 ---
 
@@ -203,6 +204,7 @@ A working `craft` CLI binary with three commands:
 - [ ] Existing craft.yaml triggers overwrite confirmation prompt
 - [ ] Generated craft.yaml passes `craft validate`
 - [ ] Non-TTY environment (piped input) produces clear error about interactive requirement
+- [ ] `craft init --help` prints usage and exits 0
 
 ---
 
