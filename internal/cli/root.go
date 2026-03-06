@@ -21,6 +21,7 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(cacheCmd)
 }
 
