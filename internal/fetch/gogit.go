@@ -157,7 +157,7 @@ func (f *GoGitFetcher) ReadFiles(url, commitSHA string, paths []string) (map[str
 			continue
 		}
 		content, err := io.ReadAll(reader)
-		reader.Close()
+		_ = reader.Close()
 		if err != nil {
 			continue
 		}
@@ -195,7 +195,7 @@ func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 		repo, err := git.PlainOpen(repoPath)
 		if err != nil {
 			// Corrupted cache — remove and re-clone
-			os.RemoveAll(repoPath)
+			_ = os.RemoveAll(repoPath)
 			return f.cloneToCache(url, repoPath)
 		}
 
@@ -240,7 +240,7 @@ func (f *GoGitFetcher) cloneToCache(url, repoPath string) (*git.Repository, erro
 	}
 	defer func() {
 		// Clean up temp dir if it still exists (rename succeeded → no-op)
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), f.timeout)

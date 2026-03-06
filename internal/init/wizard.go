@@ -53,13 +53,13 @@ func (w *Wizard) Run() error {
 	// Check for existing craft.yaml
 	manifestPath := filepath.Join(w.Root, "craft.yaml")
 	if _, err := os.Stat(manifestPath); err == nil {
-		fmt.Fprintln(w.Out, "A craft.yaml already exists in this directory.")
+		_, _ = fmt.Fprintln(w.Out, "A craft.yaml already exists in this directory.")
 		overwrite, err := w.promptYesNo(scanner, "Overwrite?", false)
 		if err != nil {
 			return err
 		}
 		if !overwrite {
-			fmt.Fprintln(w.Out, "Aborted.")
+			_, _ = fmt.Fprintln(w.Out, "Aborted.")
 			return nil
 		}
 	}
@@ -67,8 +67,8 @@ func (w *Wizard) Run() error {
 	// Infer defaults
 	defaultName := inferPackageName(w.Root)
 
-	fmt.Fprintln(w.Out, "Initializing a new craft package...")
-	fmt.Fprintln(w.Out)
+	_, _ = fmt.Fprintln(w.Out, "Initializing a new craft package...")
+	_, _ = fmt.Fprintln(w.Out)
 
 	// Prompt for name
 	name, err := w.promptValidated(scanner, fmt.Sprintf("Package name (%s)", defaultName), defaultName, validateName)

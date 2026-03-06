@@ -8,7 +8,7 @@ import (
 
 func TestDetectClaudeCode(t *testing.T) {
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
+	_ = os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
 
 	result, err := Detect(home)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestDetectClaudeCode(t *testing.T) {
 
 func TestDetectCopilot(t *testing.T) {
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
+	_ = os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
 
 	result, err := Detect(home)
 	if err != nil {
@@ -40,8 +40,8 @@ func TestDetectCopilot(t *testing.T) {
 
 func TestDetectPrecedenceClaudeFirst(t *testing.T) {
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
-	os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
+	_ = os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
+	_ = os.MkdirAll(filepath.Join(home, ".copilot"), 0o755)
 
 	result, err := Detect(home)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestDetectNoAgent(t *testing.T) {
 func TestDetectFileNotDir(t *testing.T) {
 	home := t.TempDir()
 	// Create .claude as a file, not a directory
-	os.WriteFile(filepath.Join(home, ".claude"), []byte("not a dir"), 0o644)
+	_ = os.WriteFile(filepath.Join(home, ".claude"), []byte("not a dir"), 0o644)
 
 	_, err := Detect(home)
 	if err == nil {
