@@ -10,13 +10,12 @@ import (
 )
 
 // skipDirs contains directory names to skip during skill discovery.
-// These are standard infrastructure directories that should not contain skills.
+// Per spec FR-015: .git, .paw, node_modules. Hidden directories (starting
+// with '.') are also skipped via a separate check in the walk function.
 var skipDirs = map[string]bool{
 	".git":         true,
 	".paw":         true,
 	"node_modules": true,
-	"vendor":       true,
-	"testdata":     true,
 }
 
 // DiscoverSkills recursively walks the directory tree from root,

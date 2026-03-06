@@ -65,7 +65,7 @@ func TestDiscoverSkillsSkipsHidden(t *testing.T) {
 func TestDiscoverSkillsSkipsInfra(t *testing.T) {
 	root := t.TempDir()
 
-	for _, dir := range []string{".git", "node_modules", "vendor", "testdata"} {
+	for _, dir := range []string{".git", "node_modules"} {
 		createSkillDir(t, root, filepath.Join(dir, "skill"))
 	}
 	createSkillDir(t, root, "real-skill")

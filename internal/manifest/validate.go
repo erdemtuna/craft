@@ -11,12 +11,12 @@ import (
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
 // semverPattern matches strict MAJOR.MINOR.PATCH version strings.
-// No pre-release or build metadata suffixes allowed.
-var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+// No pre-release, build metadata, or leading zeros allowed.
+var semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
 
 // depURLPattern matches dependency URL format: host/org/repo@vMAJOR.MINOR.PATCH
 // The version component requires a 'v' prefix followed by strict semver.
-var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@v\d+\.\d+\.\d+$`)
+var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
 
 // Validate checks a parsed Manifest against all schema rules.
 // Returns a slice of all validation errors found (does not stop at first error).

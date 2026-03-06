@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -179,4 +180,38 @@ func TestMultipleErrors(t *testing.T) {
 	if len(result.Errors) < 1 {
 		t.Errorf("Expected at least 1 error, got %d", len(result.Errors))
 	}
+}
+
+func TestSymlinkCycle(t *testing.T) {
+	// Create a temp directory with a symlink cycle in a skill path
+	root := t.TempDir()
+
+	// Create a craft.yaml pointing to a skill dir that has a symlink cycle
+	manifestContent := `schema_version: 1
+name: symlink-test
+version: 1.0.0
+skills:
+  - ./skills/cyclic
+`
+	os.WriteFile(filepath.Join(root, "craft.yaml"), []byte(manifestContent), 0o644)
+
+	skillDir := filepath.Join(root, "skills", "cyclic")
+	os.MkdirAll(skillDir, 0o755)
+
+	// Create a symlink cycle: cyclic/loop -> cyclic
+	err := os.Symlink(skillDir, filepath.Join(skillDir, "loop"))
+	if err != nil {
+		t.Skip("Cannot create symlinks on this platform")
+	}
+
+	// Create a SKILL.md so the directory is recognized
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: cyclic\n---\n"), 0o644)
+
+	runner := NewRunner(root)
+	result := runner.Run()
+
+	// Should complete without hanging — that's the main assertion.
+	// The result may or may not have errors depending on how os.Stat
+	// handles the cycle, but it must NOT loop infinitely.
+	_ = result
 }

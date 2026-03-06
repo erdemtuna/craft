@@ -112,6 +112,9 @@ func TestValidateVersionFormats(t *testing.T) {
 		{"v1.0.0", true},        // v prefix
 		{"abc", true},           // not a version
 		{"1.0.0.0", true},      // too many parts
+		{"01.0.0", true},       // leading zero in major
+		{"0.01.0", true},       // leading zero in minor
+		{"1.0.00", true},       // leading zero in patch
 	}
 
 	for _, tc := range tests {

@@ -6,17 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/erdemtuna/craft/internal/manifest"
 )
-
-// namePattern matches valid package names.
-var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
-
-// semverPattern matches strict MAJOR.MINOR.PATCH version strings.
-var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // Wizard runs the interactive craft init flow.
 type Wizard struct {
@@ -45,7 +38,10 @@ func NewWizard(root string, in io.Reader, out, errOut io.Writer) *Wizard {
 
 // Run executes the interactive init flow.
 func (w *Wizard) Run() error {
-	// Check if stdin is a terminal
+	// Check if stdin is a terminal. The type assertion to *os.File is safe
+	// because os.Stdin is always *os.File in production. In tests, we pass
+	// strings.Reader which bypasses this check intentionally — test code
+	// simulates interactive input via the reader directly.
 	if f, ok := w.In.(*os.File); ok {
 		if !isTerminal(f) {
 			return fmt.Errorf("craft init requires an interactive terminal (TTY); cannot run in non-interactive mode")
@@ -244,28 +240,15 @@ func inferPackageName(root string) string {
 }
 
 // validateName checks if a string is a valid package name.
+// Delegates to manifest.ValidateName for consistent validation rules.
 func validateName(name string) error {
-	if name == "" {
-		return fmt.Errorf("name is required")
-	}
-	if len(name) > 128 {
-		return fmt.Errorf("name must be 1–128 characters")
-	}
-	if !namePattern.MatchString(name) {
-		return fmt.Errorf("must be lowercase alphanumeric with hyphens (e.g. 'my-package')")
-	}
-	return nil
+	return manifest.ValidateName(name)
 }
 
 // validateVersion checks if a string is a valid semver version.
+// Delegates to manifest.ValidateVersion for consistent validation rules.
 func validateVersion(ver string) error {
-	if ver == "" {
-		return fmt.Errorf("version is required")
-	}
-	if !semverPattern.MatchString(ver) {
-		return fmt.Errorf("must be MAJOR.MINOR.PATCH (e.g. '1.0.0')")
-	}
-	return nil
+	return manifest.ValidateVersion(ver)
 }
 
 // isTerminal checks if the given file is a terminal.
