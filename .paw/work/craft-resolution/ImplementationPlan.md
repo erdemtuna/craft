@@ -53,7 +53,7 @@ Running `craft update [dep]` re-resolves to the latest available semver tags.
 ## Phase Status
 
 - [x] **Phase 1: Foundation Types & Utilities** - Dep URL parser, pinfile writer, integrity digests, agent detection
-- [ ] **Phase 2: Git Fetching Layer** - go-git bare clone, cache, SSH/token auth behind GitFetcher interface
+- [x] **Phase 2: Git Fetching Layer** - go-git bare clone, cache, SSH/token auth behind GitFetcher interface
 - [ ] **Phase 3: Resolution Engine** - MVS algorithm, dependency graph, cycle detection, collision detection, auto-discovery
 - [ ] **Phase 4: Commands & Integration** - `craft install`, `craft update`, `--target` flag, end-to-end wiring
 - [ ] **Phase 5: Documentation** - Docs.md, README updates
