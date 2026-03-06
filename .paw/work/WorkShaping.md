@@ -422,3 +422,19 @@ The global cache at `~/.craft/cache/` will grow unbounded. Need at least a `craf
 - **Follow RFC on integrity digest** — hash skill content only, not entire repo
 - **3 sequential PAW workflows** — Foundation (local-only), Resolution Engine (network), Polish (UX + remaining commands). Each produces a mergeable PR and usable tool.
 - **`craft update` = latest tag** — simple semantics matching Go's approach
+
+---
+
+## Workflow 3 Design Notes
+
+### Agent Detection: Multi-Agent Install UX
+
+When multiple AI agents are detected (both `~/.claude/` and `~/.copilot/` exist), the current behavior errors and suggests `--target`. For Workflow 3, improve this with an interactive prompt:
+
+- **Option A**: Install to Claude Code (`~/.claude/skills/`)
+- **Option B**: Install to GitHub Copilot (`~/.copilot/skills/`)
+- **Option C**: Install to both
+
+Persist the user's choice (e.g., in `craft.yaml` or `~/.craft/config.yaml`) so they aren't prompted on every install. The `--target` flag continues to override everything.
+
+Rationale: The selection exists because each agent has its own proprietary skill discovery directory. Users with both agents shouldn't be forced to pick — "install to both" is the natural default, but the choice should be explicit and remembered.
