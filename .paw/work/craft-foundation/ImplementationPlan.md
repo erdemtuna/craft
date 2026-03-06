@@ -43,7 +43,7 @@ A working `craft` CLI binary with three commands:
 
 - [x] **Phase 1: Project Scaffolding, Core Types & Version Command** — Go module, directory structure, Cobra CLI skeleton, type definitions, working `craft version`
 - [x] **Phase 2: Parsers & Per-Type Validation** — Manifest, pinfile, and frontmatter parsing with individual schema/format validation and comprehensive unit tests (depends on Phase 1)
-- [ ] **Phase 3: craft validate Command** — Orchestrate all validation checks with error collection, skill path validation, name collision detection, pinfile consistency, and dependency URL format checking (depends on Phase 2)
+- [x] **Phase 3: craft validate Command** — Orchestrate all validation checks with error collection, skill path validation, name collision detection, pinfile consistency, and dependency URL format checking (depends on Phase 2)
 - [ ] **Phase 4: craft init Command** — Interactive prompts with defaults, skill directory auto-discovery, manifest generation, overwrite protection, and TTY detection (depends on Phases 1–2)
 - [ ] **Phase 5: Documentation** — Docs.md technical reference and README.md update (depends on Phases 1–4)
 

@@ -1,0 +1,5 @@
+schema_version: 1
+name: no-deps
+version: 1.0.0
+skills:
+  - ./skills/one
