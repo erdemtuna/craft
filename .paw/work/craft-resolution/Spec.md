@@ -108,11 +108,13 @@ Acceptance Scenarios:
 - Dependency URL points to a non-existent repository: error with "repository not found" and authentication hint
 - Dependency version tag does not exist: error listing available tags from the remote
 - Monorepo URL with subpath (e.g., `repo/path@v1`): error with "monorepo paths not yet supported"
-- `craft.pin.yaml` exists but does not match `craft.yaml`: warning, prompt to re-resolve
+- `craft.pin.yaml` exists but does not match `craft.yaml`: auto-re-resolve changed dependencies with a warning (no interactive prompt — CI-friendly)
 - SKILL.md in a dependency has invalid frontmatter: error with specific field and source package info
 - Network unavailable and dependency not cached: error with clear message suggesting cache or network fix
 - Dependency repo is empty or has no commits: error with descriptive message
 - Integrity digest mismatch on cached content: re-fetch from network, warn about potential corruption
+- Empty dependencies map in `craft.yaml`: clean exit with "no dependencies to install" message
+- Two concurrent `craft install` processes writing to the same cache: handled via atomic writes to prevent corruption
 
 ## Requirements
 
@@ -128,13 +130,14 @@ Acceptance Scenarios:
 - FR-008: Write resolved dependencies to `craft.pin.yaml` using existing pinfile types (Stories: P1)
 - FR-009: Read existing `craft.pin.yaml` and skip re-resolution for dependencies whose manifest entries have not changed (Stories: P1, P6)
 - FR-010: Copy resolved skill directories to the target installation path as `<target>/<skill-name>/` (Stories: P1, P5)
-- FR-011: Auto-detect the user's AI agent by checking for known directory markers (`~/.claude/`, `~/.copilot/`) (Stories: P5)
+- FR-011: Auto-detect the user's AI agent by checking for known directory markers — `~/.claude/` for Claude Code (installs to `~/.claude/skills/`), `~/.copilot/` for GitHub Copilot (installs to `~/.copilot/skills/`) (Stories: P5)
 - FR-012: Support `--target <path>` flag on `craft install` and `craft update` to override auto-detected agent path (Stories: P5)
 - FR-013: Authenticate to private repositories using SSH keys (via ssh-agent) (Stories: P3)
-- FR-014: Authenticate to private repositories using environment tokens (`GITHUB_TOKEN`, `CRAFT_TOKEN`) via HTTPS (Stories: P3)
-- FR-015: Cache fetched git repositories at `~/.craft/cache/` keyed by repository URL (Stories: P6)
-- FR-016: Use cached repositories when available, falling back to network fetch only when cache misses (Stories: P6)
-- FR-017: Auto-discover skills in dependency repos without `craft.yaml` by scanning for `SKILL.md` files (Stories: P7)
+- FR-014: Authenticate to private repositories using environment tokens (`GITHUB_TOKEN`, `CRAFT_TOKEN`) via HTTPS — both tokens follow the same code path, `CRAFT_TOKEN` takes precedence if both are set (Stories: P3)
+- FR-015: Cache fetched git repositories at `~/.craft/cache/` as bare clones keyed by repository URL — a single cache entry per repo serves all versions (Stories: P6)
+- FR-016: Use cached repositories when available, falling back to network fetch only when cache misses; serve as offline fallback when network is unavailable (Stories: P6)
+- FR-021: Verify integrity of cached content on read; automatically re-fetch from network on integrity mismatch (Stories: P6)
+- FR-017: Auto-discover skills in dependency repos without `craft.yaml` by recursively scanning for `SKILL.md` files, treating each parent directory as a skill (Stories: P7)
 - FR-018: Re-resolve dependencies to the latest available semver tag via `craft update` (Stories: P4)
 - FR-019: Support selective update of a single dependency via `craft update <alias>` (Stories: P4)
 - FR-020: Register `install` and `update` subcommands in the existing Cobra CLI (Stories: P1, P4)
@@ -166,13 +169,16 @@ Acceptance Scenarios:
 - SC-009: `craft update` re-resolves to latest available tag and updates pinfile (FR-018)
 - SC-010: `--target /path` overrides auto-detected agent path (FR-012)
 - SC-011: Dependencies without `craft.yaml` have their skills auto-discovered via SKILL.md scanning (FR-017)
-- SC-012: All resolution logic is testable via interfaces — unit tests use mocked git operations (FR-001 through FR-019)
+- SC-012: All resolution logic is testable via interfaces — unit tests use mocked git operations (FR-001 through FR-021)
+- SC-013: When network is unavailable, cached dependencies are used successfully for installation (FR-016)
+- SC-014: `craft update <alias>` updates only the specified dependency; others remain at pinned versions (FR-019)
+- SC-015: Cached content is integrity-verified on read; corrupted cache entries trigger automatic re-fetch (FR-021)
 
 ## Assumptions
 
 - Go-git supports all authentication methods needed for typical GitHub/GitLab repos (SSH via ssh-agent, HTTPS via token). Known limitations (no ProxyJump, no hardware tokens) are documented but accepted for MVP.
 - Agent detection relies on directory existence (`~/.claude/` for Claude Code, `~/.copilot/` for Copilot). This is a heuristic that may need refinement but is sufficient for MVP.
-- The cache directory `~/.craft/cache/` is writable by the current user. No cache eviction or `craft cache clean` is included (deferred to post-MVP).
+- The cache directory `~/.craft/cache/` is writable by the current user. Repositories are cached as bare clones keyed by URL (one entry per repo, serving all versions). No cache eviction or `craft cache clean` is included (deferred to post-MVP).
 - Dependency URLs always point to the repository root. Monorepo subpath support is explicitly deferred.
 - `craft update` updates to the latest available semver tag (not constraint-based ranges). This matches Go's `go get -u` semantics.
 - The integrity digest format follows the RFC: `sha256-<base64>` where the hash covers concatenated contents of all files in the dependency's skill directories, sorted by path.
@@ -218,6 +224,7 @@ Out of Scope:
 - **go-git error messages**: Authentication failures from go-git can be opaque. Mitigation: wrap errors with actionable context ("authentication failed — is GITHUB_TOKEN set? Is the repo private?").
 - **Large dependency trees**: Deep transitive resolution could be slow or hit rate limits. Mitigation: caching reduces repeat fetches; MVP targets small-to-medium dependency trees.
 - **Cache corruption**: Interrupted downloads could leave partial cache entries. Mitigation: use atomic writes for cache storage; verify integrity on read.
+- **Concurrent cache access**: Multiple `craft install` processes in CI could race on cache writes. Mitigation: use atomic temp-file-then-rename for cache operations; reads are safe on immutable committed content.
 - **Agent path heuristic fragility**: Agent paths may change between versions. Mitigation: `--target` flag provides escape hatch; document known paths.
 
 ## References
