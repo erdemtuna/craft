@@ -38,6 +38,6 @@ Additional Inputs: none
 
 ## Stage Progress
 
-- Current Stage: final-review
+- Current Stage: pr
 - Current Phase: none
-- Completed Stages: spec, code-research, planning, planning-review, implementation
+- Completed Stages: spec, code-research, planning, planning-review, implementation, final-review
