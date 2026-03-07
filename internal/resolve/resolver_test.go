@@ -187,9 +187,10 @@ func TestResolvePinfileReuse(t *testing.T) {
 		PinVersion: 1,
 		Resolved: map[string]pinfile.ResolvedEntry{
 			"github.com/org/skills@v1.0.0": {
-				Commit:    "pinned-commit",
-				Integrity: "sha256-pinned=",
-				Skills:    []string{"my-skill"},
+				Commit:     "pinned-commit",
+				Integrity:  "sha256-pinned=",
+				Skills:     []string{"my-skill"},
+				SkillPaths: []string{"skills/my-skill"},
 			},
 		},
 	}
@@ -208,6 +209,10 @@ func TestResolvePinfileReuse(t *testing.T) {
 	// Should reuse pinned commit, not re-resolve
 	if result.Resolved[0].Commit != "pinned-commit" {
 		t.Errorf("Should reuse pinned commit, got %q", result.Resolved[0].Commit)
+	}
+	// Should preserve SkillPaths from pinfile
+	if len(result.Resolved[0].SkillPaths) != 1 || result.Resolved[0].SkillPaths[0] != "skills/my-skill" {
+		t.Errorf("Should preserve SkillPaths from pinfile, got %v", result.Resolved[0].SkillPaths)
 	}
 }
 

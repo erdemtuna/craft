@@ -52,6 +52,19 @@ func Write(p *Pinfile, w io.Writer) error {
 			}
 			entryMap.Content = append(entryMap.Content, skillsKey, skillsSeq)
 
+			// skill_paths as sequence (only if non-empty)
+			if len(entry.SkillPaths) > 0 {
+				spKey := &yaml.Node{Kind: yaml.ScalarNode, Value: "skill_paths"}
+				spSeq := &yaml.Node{Kind: yaml.SequenceNode}
+				for _, sp := range entry.SkillPaths {
+					spSeq.Content = append(spSeq.Content, &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Value: sp,
+					})
+				}
+				entryMap.Content = append(entryMap.Content, spKey, spSeq)
+			}
+
 			resolvedMap.Content = append(resolvedMap.Content, urlNode, entryMap)
 		}
 

@@ -12,9 +12,10 @@ func TestWriteRoundTrip(t *testing.T) {
 		PinVersion: 1,
 		Resolved: map[string]ResolvedEntry{
 			"github.com/example/git-skills@v1.0.0": {
-				Commit:    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-				Integrity: "sha256-Xk9jR2mN5pQ8vW3yB7cF1dA4hL6tS0uE9iO2wR5nM3s=",
-				Skills:    []string{"git-commit", "git-branch"},
+				Commit:     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+				Integrity:  "sha256-Xk9jR2mN5pQ8vW3yB7cF1dA4hL6tS0uE9iO2wR5nM3s=",
+				Skills:     []string{"git-commit", "git-branch"},
+				SkillPaths: []string{"skills/git-commit", "skills/git-branch"},
 			},
 			"github.com/other-org/style-skills@v2.3.1": {
 				Commit:    "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5",
@@ -56,6 +57,15 @@ func TestWriteRoundTrip(t *testing.T) {
 		}
 		if len(got.Skills) != len(want.Skills) {
 			t.Errorf("Resolved[%q].Skills count = %d, want %d", url, len(got.Skills), len(want.Skills))
+		}
+		if len(got.SkillPaths) != len(want.SkillPaths) {
+			t.Errorf("Resolved[%q].SkillPaths count = %d, want %d", url, len(got.SkillPaths), len(want.SkillPaths))
+		} else {
+			for i, sp := range want.SkillPaths {
+				if got.SkillPaths[i] != sp {
+					t.Errorf("Resolved[%q].SkillPaths[%d] = %q, want %q", url, i, got.SkillPaths[i], sp)
+				}
+			}
 		}
 	}
 }

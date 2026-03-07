@@ -26,4 +26,7 @@ type ResolvedEntry struct {
 
 	// Skills lists the skill names discovered in the dependency.
 	Skills []string `yaml:"skills"`
+
+	// SkillPaths lists the skill directory paths relative to the repo root.
+	SkillPaths []string `yaml:"skill_paths,omitempty"`
 }

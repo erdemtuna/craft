@@ -188,10 +188,11 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 	}
 	for _, dep := range resolved {
 		pf.Resolved[dep.URL] = pinfile.ResolvedEntry{
-			Commit:    dep.Commit,
-			Integrity: dep.Integrity,
-			Source:    dep.Source,
-			Skills:    dep.Skills,
+			Commit:     dep.Commit,
+			Integrity:  dep.Integrity,
+			Source:     dep.Source,
+			Skills:     dep.Skills,
+			SkillPaths: dep.SkillPaths,
 		}
 	}
 
@@ -269,6 +270,7 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 			dep.Commit = entry.Commit
 			dep.Integrity = entry.Integrity
 			dep.Skills = entry.Skills
+			dep.SkillPaths = entry.SkillPaths
 			return dep, nil
 		}
 	}
