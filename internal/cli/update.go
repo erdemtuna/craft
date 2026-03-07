@@ -109,12 +109,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Write updated manifest atomically
-	if err := writeManifestAtomic(manifestPath, m); err != nil {
-		return err
-	}
-
-	// Now run install with the updated manifest (force re-resolve)
+	// Resolve before writing anything to disk — if resolution fails,
+	// neither manifest nor pinfile is modified.
 	progress.Update("Resolving updated dependencies...")
 	forceResolve := make(map[string]bool)
 	for alias, depURL := range m.Dependencies {
@@ -141,6 +137,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
+		return err
+	}
+
+	// Write updated manifest only after resolution and pinfile write succeed
+	if err := writeManifestAtomic(manifestPath, m); err != nil {
 		return err
 	}
 
