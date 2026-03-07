@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+echo "pre-commit: checking formatting..."
+UNFORMATTED=$(gofmt -l . 2>/dev/null)
+if [ -n "$UNFORMATTED" ]; then
+  echo "Files need formatting:"
+  echo "$UNFORMATTED"
+  echo ""
+  echo "Run 'task fmt' to fix, then re-commit."
+  exit 1
+fi
+
+echo "pre-commit: running go vet..."
+go vet ./...
+
+echo "pre-commit: all checks passed"

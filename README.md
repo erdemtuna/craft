@@ -252,6 +252,16 @@ task install      # Install binary to $GOPATH/bin
 task clean        # Remove build artifacts
 ```
 
+### Git Hooks
+
+```bash
+task hooks:install    # Enable pre-commit and pre-push hooks
+task hooks:uninstall  # Disable hooks
+```
+
+- **pre-commit** — checks formatting (`gofmt`) and runs `go vet`
+- **pre-push** — runs `golangci-lint` and tests
+
 ### Running CI Locally
 
 ```bash

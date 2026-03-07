@@ -71,6 +71,18 @@ tasks:
     cmds:
       - go install -ldflags "{{.LDFLAGS}}" {{.CMD}}
 
+  hooks:install:
+    desc: Install git hooks (pre-commit and pre-push)
+    cmds:
+      - git config core.hooksPath .githooks
+      - echo "Git hooks installed (.githooks/)"
+
+  hooks:uninstall:
+    desc: Uninstall git hooks
+    cmds:
+      - git config --unset core.hooksPath
+      - echo "Git hooks uninstalled"
+
   clean:
     desc: Remove build artifacts
     cmds:
