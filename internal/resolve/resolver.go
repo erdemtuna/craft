@@ -15,6 +15,11 @@ import (
 	"github.com/erdemtuna/craft/internal/skill"
 )
 
+const (
+	maxResolutionDepth = 20
+	maxTotalDeps       = 200
+)
+
 // Resolver orchestrates dependency resolution using MVS.
 type Resolver struct {
 	fetcher fetch.GitFetcher
@@ -57,7 +62,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 	rootID := m.Name
 
 	visited := make(map[string]string) // identity → version first visited
-	allDeps, err := r.collectDeps(m, rootID, "", graph, opts, visited)
+	allDeps, err := r.collectDeps(m, rootID, "", graph, opts, visited, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +145,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 			}
 
 			if len(depManifest.Dependencies) > 0 {
-				transitive, err := r.collectDeps(depManifest, identity, dep.URL, graph, opts, visited)
+				transitive, err := r.collectDeps(depManifest, identity, dep.URL, graph, opts, visited, 0)
 				if err != nil {
 					return nil, err
 				}
@@ -200,7 +205,11 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 }
 
 // collectDeps recursively collects all dependency requirements.
-func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, graph *Graph, opts ResolveOptions, visited map[string]string) ([]ResolvedDep, error) {
+func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, graph *Graph, opts ResolveOptions, visited map[string]string, depth int) ([]ResolvedDep, error) {
+	if depth > maxResolutionDepth {
+		return nil, fmt.Errorf("dependency resolution exceeded maximum depth of %d (possible deep dependency chain)", maxResolutionDepth)
+	}
+
 	var allDeps []ResolvedDep
 
 	for alias, depURL := range m.Dependencies {
@@ -224,6 +233,9 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 			continue
 		}
 		visited[identity] = parsed.Version
+		if len(visited) > maxTotalDeps {
+			return nil, fmt.Errorf("dependency resolution exceeded maximum of %d total dependencies", maxTotalDeps)
+		}
 
 		cloneURL := fetch.NormalizeCloneURL(identity)
 
@@ -245,7 +257,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 			}
 
 			if len(depManifest.Dependencies) > 0 {
-				transitive, err := r.collectDeps(depManifest, identity, depURL, graph, opts, visited)
+				transitive, err := r.collectDeps(depManifest, identity, depURL, graph, opts, visited, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -327,6 +339,12 @@ func (r *Resolver) discoverFromManifestSkills(cloneURL, commitSHA string, skillD
 		return nil, nil, nil, err
 	}
 
+	// Fetch tree once for all skill directories
+	treePaths, listErr := r.fetcher.ListTree(cloneURL, commitSHA)
+	if listErr != nil {
+		return nil, nil, nil, fmt.Errorf("listing tree for integrity: %w", listErr)
+	}
+
 	var names []string
 	var dirs []string
 	allFiles := make(map[string][]byte)
@@ -344,22 +362,14 @@ func (r *Resolver) discoverFromManifestSkills(cloneURL, commitSHA string, skillD
 			continue
 		}
 
+		if manifest.ValidateName(fm.Name) != nil {
+			continue
+		}
+
 		names = append(names, fm.Name)
 		dirs = append(dirs, sp)
 
-		// Read all files in skill directory for integrity
-		treePaths, listErr := r.fetcher.ListTree(cloneURL, commitSHA)
-		if listErr != nil {
-			return nil, nil, nil, fmt.Errorf("listing tree for integrity: %w", listErr)
-		}
-		prefix := sp + "/"
-		var dirPaths []string
-		for _, p := range treePaths {
-			if strings.HasPrefix(p, prefix) {
-				dirPaths = append(dirPaths, p)
-			}
-		}
-		dirFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		dirFiles, readErr := CollectSkillDirFiles(r.fetcher, cloneURL, commitSHA, treePaths, sp)
 		if readErr != nil {
 			return nil, nil, nil, fmt.Errorf("reading skill files for integrity: %w", readErr)
 		}
@@ -409,6 +419,10 @@ func (r *Resolver) autoDiscoverSkills(cloneURL, commitSHA string) ([]string, []s
 			continue
 		}
 
+		if manifest.ValidateName(fm.Name) != nil {
+			continue
+		}
+
 		skillDir := strings.TrimSuffix(mdPath, "/SKILL.md")
 		if skillDir == "SKILL.md" {
 			skillDir = ""
@@ -417,22 +431,7 @@ func (r *Resolver) autoDiscoverSkills(cloneURL, commitSHA string) ([]string, []s
 		names = append(names, fm.Name)
 		dirs = append(dirs, skillDir)
 
-		// Collect files in skill directory
-		prefix := skillDir + "/"
-		if skillDir == "" {
-			prefix = ""
-		}
-		var dirPaths []string
-		for _, p := range allPaths {
-			if prefix == "" || strings.HasPrefix(p, prefix) {
-				// For root-level skills, exclude infrastructure files
-				if prefix == "" && IsInfraFile(p) {
-					continue
-				}
-				dirPaths = append(dirPaths, p)
-			}
-		}
-		dirFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, dirPaths)
+		dirFiles, readErr := CollectSkillDirFiles(r.fetcher, cloneURL, commitSHA, allPaths, skillDir)
 		if readErr != nil {
 			return nil, nil, nil, fmt.Errorf("reading skill files for integrity: %w", readErr)
 		}
@@ -470,6 +469,29 @@ func detectCollisions(resolved []ResolvedDep) error {
 		}
 	}
 	return nil
+}
+
+// CollectSkillDirFiles filters allPaths by skillDir, excludes infra files for
+// root-level skills, and reads the matching files via fetcher. Returned paths
+// are original (not stripped). Callers that need relative paths should strip
+// the prefix themselves.
+func CollectSkillDirFiles(fetcher fetch.GitFetcher, cloneURL, commitSHA string, allPaths []string, skillDir string) (map[string][]byte, error) {
+	prefix := skillDir + "/"
+	if skillDir == "" {
+		prefix = ""
+	}
+
+	var filePaths []string
+	for _, p := range allPaths {
+		if prefix == "" || strings.HasPrefix(p, prefix) {
+			if prefix == "" && IsInfraFile(p) {
+				continue
+			}
+			filePaths = append(filePaths, p)
+		}
+	}
+
+	return fetcher.ReadFiles(cloneURL, commitSHA, filePaths)
 }
 
 // IsInfraFile returns true for common infrastructure files that should not

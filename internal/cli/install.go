@@ -267,49 +267,34 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 
 		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
 
+		// Fetch tree once per dependency
+		allPaths, err := fetcher.ListTree(cloneURL, dep.Commit)
+		if err != nil {
+			return nil, fmt.Errorf("listing files for %s: %w", dep.URL, err)
+		}
+
 		for i, skillName := range dep.Skills {
 			var skillDir string
 			if i < len(dep.SkillPaths) {
 				skillDir = dep.SkillPaths[i]
 			}
 
-			// Read all files in skill directory
-			allPaths, err := fetcher.ListTree(cloneURL, dep.Commit)
-			if err != nil {
-				return nil, fmt.Errorf("listing files for %s: %w", skillName, err)
-			}
-
-			prefix := skillDir + "/"
-			if skillDir == "" {
-				prefix = ""
-			}
-			var filePaths []string
-			for _, p := range allPaths {
-				if prefix == "" || strings.HasPrefix(p, prefix) {
-					// For root-level skills, exclude infrastructure files
-					if prefix == "" && resolve.IsInfraFile(p) {
-						continue
-					}
-					filePaths = append(filePaths, p)
-				}
-			}
-
-			files, err := fetcher.ReadFiles(cloneURL, dep.Commit, filePaths)
+			files, err := resolve.CollectSkillDirFiles(fetcher, cloneURL, dep.Commit, allPaths, skillDir)
 			if err != nil {
 				return nil, fmt.Errorf("reading files for %s: %w", skillName, err)
 			}
 
 			// Remap paths to be relative to skill directory
-			mapped := make(map[string][]byte)
-			for p, content := range files {
-				relPath := p
-				if prefix != "" {
-					relPath = strings.TrimPrefix(p, prefix)
+			if skillDir != "" {
+				prefix := skillDir + "/"
+				mapped := make(map[string][]byte, len(files))
+				for p, content := range files {
+					mapped[strings.TrimPrefix(p, prefix)] = content
 				}
-				mapped[relPath] = content
+				files = mapped
 			}
 
-			skills[skillName] = mapped
+			skills[skillName] = files
 		}
 	}
 
