@@ -1,0 +1,41 @@
+name: Build Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          EXT=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+          go build -ldflags "-s -w -X github.com/erdemtuna/craft/internal/version.Version=${VERSION}" \
+            -o craft_${{ matrix.goos }}_${{ matrix.goarch }}${EXT} ./cmd/craft
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: craft_*
