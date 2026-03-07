@@ -226,6 +226,41 @@ $ craft install --target ./my-skills
 
 This project wouldn't exist without [Rob Emanuele](https://github.com/lossyrob)'s [PAW (Phased Agent Workflow)](https://github.com/lossyrob/phased-agent-workflow). Working with PAW — writing new skills, extending existing ones — made me realize the dependency problem.
 
+## Development
+
+### Prerequisites
+
+- [Go 1.24+](https://go.dev/dl/)
+- [Task](https://taskfile.dev/) — `go install github.com/go-task/task/v3/cmd/task@latest`
+- [golangci-lint](https://golangci-lint.run/welcome/install/) — `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`
+- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) — `go install golang.org/x/vuln/cmd/govulncheck@latest`
+
+### Available Tasks
+
+```bash
+task              # List all available tasks
+task build        # Build the binary (with version injection)
+task test         # Run tests with race detector
+task test:coverage # Run tests with coverage report (HTML output)
+task fmt          # Format Go source files
+task fmt:check    # Check formatting (fails if files need formatting)
+task vet          # Run go vet
+task lint         # Run golangci-lint
+task vuln         # Run govulncheck for known vulnerabilities
+task ci           # Run full CI pipeline locally
+task install      # Install binary to $GOPATH/bin
+task clean        # Remove build artifacts
+```
+
+### Running CI Locally
+
+```bash
+# Run the same checks that CI runs
+task ci
+```
+
+This runs: format check → vet → lint → vulnerability scan → tests → build.
+
 ## License
 
 MIT

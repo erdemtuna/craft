@@ -1,0 +1,79 @@
+version: '3'
+
+vars:
+  BINARY: craft
+  CMD: ./cmd/craft
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  LDFLAGS: -s -w -X github.com/erdemtuna/craft/internal/version.Version={{.VERSION}}
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the binary
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BINARY}} {{.CMD}}
+
+  test:
+    desc: Run tests with race detector
+    cmds:
+      - go test -race ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -race -coverprofile=coverage.out ./...
+      - go tool cover -func=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report written to coverage.html"
+
+  fmt:
+    desc: Format Go source files
+    cmds:
+      - gofmt -w .
+
+  fmt:check:
+    desc: Check formatting (fails if files need formatting)
+    cmds:
+      - test -z "$(gofmt -l .)" || { gofmt -l . && echo "Files above need formatting. Run 'task fmt'" && exit 1; }
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  vuln:
+    desc: Run govulncheck for known vulnerabilities
+    cmds:
+      - govulncheck ./...
+
+  ci:
+    desc: Run full CI pipeline locally
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: lint
+      - task: vuln
+      - task: test
+      - task: build
+
+  install:
+    desc: Install binary to $GOPATH/bin
+    cmds:
+      - go install -ldflags "{{.LDFLAGS}}" {{.CMD}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f {{.BINARY}}
+      - rm -f coverage.out coverage.html
+      - rm -rf dist/
