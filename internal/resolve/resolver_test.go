@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -271,6 +272,42 @@ func TestCompareSemver(t *testing.T) {
 				t.Errorf("semver.Compare(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveDepthLimit(t *testing.T) {
+	mock := newTestFetcher()
+
+	// Build a chain of maxResolutionDepth+2 packages: dep0 → dep1 → ... → depN
+	// Each dep depends on the next, exceeding the depth limit.
+	chainLen := maxResolutionDepth + 2
+	for i := 0; i < chainLen; i++ {
+		identity := fmt.Sprintf("github.com/org/dep%d", i)
+		cloneURL := "https://" + identity + ".git"
+		commitSHA := fmt.Sprintf("sha%d", i)
+		mock.Refs[cloneURL+":v1.0.0"] = commitSHA
+		mock.Trees[cloneURL+":"+commitSHA] = []string{"skills/s/SKILL.md"}
+		mock.Files[cloneURL+":"+commitSHA+":skills/s/SKILL.md"] = []byte(fmt.Sprintf("---\nname: skill-%d\n---\n", i))
+
+		if i < chainLen-1 {
+			nextIdentity := fmt.Sprintf("github.com/org/dep%d", i+1)
+			mock.Files[cloneURL+":"+commitSHA+":craft.yaml"] = []byte(fmt.Sprintf(
+				"schema_version: 1\nname: dep%d\nversion: 1.0.0\nskills:\n  - ./skills/s\ndependencies:\n  next: %s@v1.0.0\n", i, nextIdentity))
+		}
+	}
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name:         "root",
+		Dependencies: map[string]string{"dep0": "github.com/org/dep0@v1.0.0"},
+	}
+
+	_, err := resolver.Resolve(m, ResolveOptions{})
+	if err == nil {
+		t.Fatal("Expected depth limit error")
+	}
+	if !strings.Contains(err.Error(), "exceeded maximum depth") {
+		t.Errorf("Error should mention depth limit, got: %v", err)
 	}
 }
 
