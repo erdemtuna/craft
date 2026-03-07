@@ -35,4 +35,3 @@ release:
   github:
     owner: erdemtuna
     name: craft
-  generate_release_notes: true
