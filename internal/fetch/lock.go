@@ -34,5 +34,6 @@ func (l *fileLock) Unlock() {
 	if l.file != nil {
 		_ = syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 		_ = l.file.Close()
+		_ = os.Remove(l.path)
 	}
 }

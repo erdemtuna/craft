@@ -16,6 +16,9 @@ import (
 
 const defaultGitTimeout = 2 * time.Minute
 
+// MaxFileSize is the maximum allowed size for a single file read from git (10 MB).
+const MaxFileSize = 10 << 20
+
 // GoGitFetcher implements GitFetcher using go-git with a local bare clone cache.
 type GoGitFetcher struct {
 	cache   *Cache
@@ -150,16 +153,22 @@ func (f *GoGitFetcher) ReadFiles(url, commitSHA string, paths []string) (map[str
 	for _, p := range paths {
 		file, err := tree.File(p)
 		if err != nil {
-			continue // silently skip missing files
+			if err == object.ErrFileNotFound || err == object.ErrDirectoryNotFound || err == object.ErrEntryNotFound {
+				continue // silently skip missing files
+			}
+			return nil, fmt.Errorf("looking up %s: %w", p, err)
 		}
 		reader, err := file.Reader()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("opening %s: %w", p, err)
 		}
-		content, err := io.ReadAll(reader)
+		content, err := io.ReadAll(io.LimitReader(reader, int64(MaxFileSize)+1))
 		_ = reader.Close()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("reading %s: %w", p, err)
+		}
+		if len(content) > MaxFileSize {
+			return nil, fmt.Errorf("file %s exceeds maximum size of %d bytes", p, MaxFileSize)
 		}
 		result[p] = content
 	}
@@ -182,6 +191,7 @@ func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 	if err != nil {
 		// If locking fails, proceed without lock (best-effort)
 		// This handles systems where flock is unavailable
+		fmt.Fprintf(os.Stderr, "warning: could not acquire lock for %s: %v\n", repoPath, err)
 		lock = nil
 	}
 	defer func() {

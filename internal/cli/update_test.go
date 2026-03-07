@@ -69,6 +69,32 @@ func TestCompareParts(t *testing.T) {
 	}
 }
 
+func TestUpdateSkipsDowngrade(t *testing.T) {
+	// Simulate the update logic: if the remote "latest" tag is older than
+	// the currently pinned version, no update should happen.
+	currentVersion := "2.0.0"
+	latestTag := "v1.5.0" // older than current — should be skipped
+
+	latestVersion := strings.TrimPrefix(latestTag, "v")
+	if semver.Compare(latestVersion, currentVersion) > 0 {
+		t.Errorf("downgrade should be skipped: latest %s is not newer than current %s", latestTag, currentVersion)
+	}
+
+	// Verify that a genuine upgrade is still accepted
+	upgradeTag := "v3.0.0"
+	upgradeVersion := strings.TrimPrefix(upgradeTag, "v")
+	if semver.Compare(upgradeVersion, currentVersion) <= 0 {
+		t.Errorf("upgrade should be accepted: latest %s should be newer than current %s", upgradeTag, currentVersion)
+	}
+
+	// Equal versions should not trigger an update either
+	sameTag := "v2.0.0"
+	sameVersion := strings.TrimPrefix(sameTag, "v")
+	if semver.Compare(sameVersion, currentVersion) > 0 {
+		t.Errorf("same version should not trigger update: %s == %s", sameTag, currentVersion)
+	}
+}
+
 func TestWriteManifestAtomic(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "craft.yaml")

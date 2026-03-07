@@ -46,28 +46,7 @@ type DetectResult struct {
 // markers under the given home directory. Returns an error if no known
 // agent is detected or if multiple agents are found, suggesting --target.
 func Detect(homeDir string) (*DetectResult, error) {
-	checks := []struct {
-		agent   Type
-		marker  string
-		install string
-	}{
-		{ClaudeCode, ".claude", filepath.Join(homeDir, ".claude", "skills")},
-		{Copilot, ".copilot", filepath.Join(homeDir, ".copilot", "skills")},
-	}
-
-	var detected []struct {
-		agent   Type
-		install string
-	}
-	for _, c := range checks {
-		markerPath := filepath.Join(homeDir, c.marker)
-		if info, err := os.Stat(markerPath); err == nil && info.IsDir() {
-			detected = append(detected, struct {
-				agent   Type
-				install string
-			}{c.agent, c.install})
-		}
-	}
+	detected := detectAgents(homeDir)
 
 	switch len(detected) {
 	case 0:
@@ -85,4 +64,40 @@ func Detect(homeDir string) (*DetectResult, error) {
 		return nil, fmt.Errorf("multiple AI agents detected (%s) — use --target <path> to specify the installation directory",
 			strings.Join(names, ", "))
 	}
+}
+
+// DetectAll returns all detected AI agents. Returns an empty slice if none
+// are found. Unlike Detect, this does not error on zero or multiple agents.
+func DetectAll(homeDir string) []DetectResult {
+	found := detectAgents(homeDir)
+	results := make([]DetectResult, len(found))
+	for i, d := range found {
+		results[i] = DetectResult{Agent: d.agent, InstallPath: d.install}
+	}
+	return results
+}
+
+type detectedEntry struct {
+	agent   Type
+	install string
+}
+
+func detectAgents(homeDir string) []detectedEntry {
+	checks := []struct {
+		agent   Type
+		marker  string
+		install string
+	}{
+		{ClaudeCode, ".claude", filepath.Join(homeDir, ".claude", "skills")},
+		{Copilot, ".copilot", filepath.Join(homeDir, ".copilot", "skills")},
+	}
+
+	var detected []detectedEntry
+	for _, c := range checks {
+		markerPath := filepath.Join(homeDir, c.marker)
+		if info, err := os.Stat(markerPath); err == nil && info.IsDir() {
+			detected = append(detected, detectedEntry{c.agent, c.install})
+		}
+	}
+	return detected
 }
