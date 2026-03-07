@@ -2,6 +2,5 @@
 craft
 dist/
 *.out
-coverage.out
 coverage.html
 .task/

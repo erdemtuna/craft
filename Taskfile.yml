@@ -80,7 +80,7 @@ tasks:
   hooks:uninstall:
     desc: Uninstall git hooks
     cmds:
-      - git config --unset core.hooksPath
+      - git config --unset core.hooksPath 2>/dev/null || true
       - echo "Git hooks uninstalled"
 
   clean:
@@ -89,3 +89,4 @@ tasks:
       - rm -f {{.BINARY}}
       - rm -f coverage.out coverage.html
       - rm -rf dist/
+      - rm -rf .task/
