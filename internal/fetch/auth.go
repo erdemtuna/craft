@@ -71,7 +71,7 @@ func isTrustedHost(rawURL string) bool {
 
 	// Unknown host without allowlist: warn once, then allow (backward compat).
 	craftTokenWarning.Do(func() {
-		fmt.Fprintf(warnWriter,
+		_, _ = fmt.Fprintf(warnWriter,
 			"warning: CRAFT_TOKEN is being sent to %q which is not a well-known forge.\n"+
 				"  Set CRAFT_TOKEN_HOSTS to restrict token to trusted hosts.\n", host)
 	})
