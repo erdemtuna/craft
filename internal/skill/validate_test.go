@@ -26,12 +26,12 @@ func TestValidateFrontmatterInvalidNames(t *testing.T) {
 		{"valid-name", false},
 		{"a", false},
 		{"my-cool-skill", false},
-		{"", true},             // empty
-		{"MySkill", true},      // uppercase
-		{"-leading", true},     // leading hyphen
-		{"trailing-", true},    // trailing hyphen
-		{"with spaces", true},  // spaces
-		{"with_under", true},   // underscore
+		{"", true},            // empty
+		{"MySkill", true},     // uppercase
+		{"-leading", true},    // leading hyphen
+		{"trailing-", true},   // trailing hyphen
+		{"with spaces", true}, // spaces
+		{"with_under", true},  // underscore
 	}
 
 	for _, tc := range tests {

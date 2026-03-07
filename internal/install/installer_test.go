@@ -95,8 +95,8 @@ func TestInstallAllowsNormalSkillNames(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "skills")
 	skills := map[string]map[string][]byte{
 		"my-skill": {
-			"SKILL.md":          []byte("ok"),
-			"subdir/rules.txt":  []byte("nested ok"),
+			"SKILL.md":         []byte("ok"),
+			"subdir/rules.txt": []byte("nested ok"),
 		},
 	}
 	if err := Install(target, skills); err != nil {

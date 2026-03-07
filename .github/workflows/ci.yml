@@ -7,22 +7,60 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  quality:
+    name: Quality Checks
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.24']
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
 
-      - run: go vet ./...
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || { gofmt -l . && echo "::error::Files above need formatting. Run 'gofmt -w .'" && exit 1; }
 
-      - uses: golangci/golangci-lint-action@v7
+      - name: Vet
+        run: go vet ./...
 
-      - run: go test -race ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
 
-      - run: go build ./cmd/craft
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Security scan
+        run: govulncheck ./...
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [quality, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./cmd/craft

@@ -296,9 +296,9 @@ func (r *Runner) checkNameCollisions(result *Result, skillNames map[string][]str
 	for name, paths := range skillNames {
 		if len(paths) > 1 {
 			result.Errors = append(result.Errors, &Error{
-				Category: CategoryCollision,
-				Field:    name,
-				Message:  fmt.Sprintf("skill name %q exported by multiple paths: %s", name, strings.Join(paths, ", ")),
+				Category:   CategoryCollision,
+				Field:      name,
+				Message:    fmt.Sprintf("skill name %q exported by multiple paths: %s", name, strings.Join(paths, ", ")),
 				Suggestion: "Each skill name must be unique within the package — rename one of the conflicting skills",
 			})
 		}

@@ -1,0 +1,22 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - gofmt
+    - misspell
+    - prealloc
+    - unconvert
+
+issues:
+  exclude-dirs:
+    - testdata

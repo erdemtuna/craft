@@ -226,6 +226,16 @@ $ craft install --target ./my-skills
 
 This project wouldn't exist without [Rob Emanuele](https://github.com/lossyrob)'s [PAW (Phased Agent Workflow)](https://github.com/lossyrob/phased-agent-workflow). Working with PAW — writing new skills, extending existing ones — made me realize the dependency problem.
 
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full developer guide — setup, code quality tools, git hooks, testing, and CI/CD.
+
+Quick start:
+
+```bash
+task ci   # run the full CI pipeline locally (fmt, vet, lint, vuln, test, build)
+```
+
 ## License
 
 MIT

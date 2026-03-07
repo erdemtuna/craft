@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+
+echo "pre-push: running linter..."
+golangci-lint run ./...
+
+echo "pre-push: running tests..."
+go test -race ./...
+
+echo "pre-push: all checks passed"

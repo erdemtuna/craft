@@ -113,7 +113,7 @@ func TestWriteWithSourceField(t *testing.T) {
 			"github.com/transitive/dep@v2.0.0": {
 				Commit:    "bbb",
 				Integrity: "sha256-b=",
-				Source:     "github.com/direct/dep@v1.0.0",
+				Source:    "github.com/direct/dep@v1.0.0",
 				Skills:    []string{"s2"},
 			},
 		},

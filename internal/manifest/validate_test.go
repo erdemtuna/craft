@@ -58,15 +58,15 @@ func TestValidateNameFormats(t *testing.T) {
 		{"abc123", false},
 		{"my-cool-package", false},
 		{"a1-b2-c3", false},
-		{"", true},             // empty
-		{"MyPackage", true},    // uppercase
-		{"my package", true},   // spaces
-		{"-leading", true},     // leading hyphen
-		{"trailing-", true},    // trailing hyphen
-		{"double--hyphen", true}, // consecutive hyphens
-		{"123start", true},     // starts with number
+		{"", true},                // empty
+		{"MyPackage", true},       // uppercase
+		{"my package", true},      // spaces
+		{"-leading", true},        // leading hyphen
+		{"trailing-", true},       // trailing hyphen
+		{"double--hyphen", true},  // consecutive hyphens
+		{"123start", true},        // starts with number
 		{"with_underscore", true}, // underscore
-		{"with.dot", true},     // dot
+		{"with.dot", true},        // dot
 	}
 
 	for _, tc := range tests {
@@ -103,18 +103,18 @@ func TestValidateVersionFormats(t *testing.T) {
 		{"0.1.0", false},
 		{"10.20.30", false},
 		{"0.0.0", false},
-		{"", true},              // empty
-		{"1.0", true},           // missing patch
-		{"1", true},             // only major
-		{"1.0.0-alpha", true},   // pre-release suffix
-		{"1.0.0+build", true},   // build metadata
-		{"1.0.0-rc.1", true},    // release candidate
-		{"v1.0.0", true},        // v prefix
-		{"abc", true},           // not a version
-		{"1.0.0.0", true},      // too many parts
-		{"01.0.0", true},       // leading zero in major
-		{"0.01.0", true},       // leading zero in minor
-		{"1.0.00", true},       // leading zero in patch
+		{"", true},            // empty
+		{"1.0", true},         // missing patch
+		{"1", true},           // only major
+		{"1.0.0-alpha", true}, // pre-release suffix
+		{"1.0.0+build", true}, // build metadata
+		{"1.0.0-rc.1", true},  // release candidate
+		{"v1.0.0", true},      // v prefix
+		{"abc", true},         // not a version
+		{"1.0.0.0", true},     // too many parts
+		{"01.0.0", true},      // leading zero in major
+		{"0.01.0", true},      // leading zero in minor
+		{"1.0.00", true},      // leading zero in patch
 	}
 
 	for _, tc := range tests {
@@ -157,10 +157,10 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 		{"github.com/example/skills@v1.0.0", false},
 		{"gitlab.com/org/repo@v2.3.1", false},
 		{"github.com/org/my-repo@v0.1.0", false},
-		{"github.com/org/repo", true},           // missing version
-		{"github.com/org/repo@1.0.0", true},     // missing v prefix
-		{"just-a-name@v1.0.0", true},            // missing host/org
-		{"github.com/org/repo@latest", true},     // non-semver tag
+		{"github.com/org/repo", true},             // missing version
+		{"github.com/org/repo@1.0.0", true},       // missing v prefix
+		{"just-a-name@v1.0.0", true},              // missing host/org
+		{"github.com/org/repo@latest", true},      // non-semver tag
 		{"github.com/org/repo@v1.0.0-beta", true}, // pre-release
 	}
 
@@ -193,7 +193,7 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 func TestValidateMultipleErrors(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 2,     // invalid
-		Name:          "",     // missing
+		Name:          "",    // missing
 		Version:       "bad", // invalid
 		Skills:        nil,   // empty
 	}

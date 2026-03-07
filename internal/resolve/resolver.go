@@ -508,8 +508,8 @@ var infraFiles = map[string]bool{
 	"changelog.md": true, "changelog.txt": true, "changelog": true,
 	"contributing.md": true, "contributing.txt": true,
 	"code_of_conduct.md": true,
-	"craft.yaml": true,
-	".gitignore": true, ".gitattributes": true,
+	"craft.yaml":         true,
+	".gitignore":         true, ".gitattributes": true,
 }
 
 func IsInfraFile(path string) bool {

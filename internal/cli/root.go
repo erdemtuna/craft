@@ -8,9 +8,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "craft",
-	Short: "Agent Skills package manager",
-	Long:  "craft — resolve, install, and manage skill dependencies for Agent Skills packages.",
+	Use:           "craft",
+	Short:         "Agent Skills package manager",
+	Long:          "craft — resolve, install, and manage skill dependencies for Agent Skills packages.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

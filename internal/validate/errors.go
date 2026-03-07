@@ -8,13 +8,13 @@ import "fmt"
 type Category string
 
 const (
-	CategorySchema     Category = "schema"
-	CategorySkillPath  Category = "skill-path"
+	CategorySchema      Category = "schema"
+	CategorySkillPath   Category = "skill-path"
 	CategoryFrontmatter Category = "frontmatter"
-	CategoryDependency Category = "dependency"
-	CategoryPinfile    Category = "pinfile"
-	CategoryCollision  Category = "collision"
-	CategorySafety     Category = "safety"
+	CategoryDependency  Category = "dependency"
+	CategoryPinfile     Category = "pinfile"
+	CategoryCollision   Category = "collision"
+	CategorySafety      Category = "safety"
 )
 
 // Error represents a structured validation error with context for
