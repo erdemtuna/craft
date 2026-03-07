@@ -392,8 +392,8 @@ func TestVerifyIntegrity_Pass(t *testing.T) {
 	// Build skill files matching what the resolver would produce
 	skillFiles := map[string]map[string][]byte{
 		"lint": {
-			"SKILL.md":    []byte("---\nname: lint\n---\n"),
-			"rules.yaml":  []byte("rules: []"),
+			"SKILL.md":   []byte("---\nname: lint\n---\n"),
+			"rules.yaml": []byte("rules: []"),
 		},
 	}
 

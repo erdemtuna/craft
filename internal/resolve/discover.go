@@ -58,10 +58,10 @@ func DiscoverSkills(allPaths []string, readFile func(path string) ([]byte, error
 		}
 
 		skills = append(skills, DiscoveredSkill{
-			Name:     fm.Name,
-			Dir:      skillDir,
-			Files:    dirFiles,
-			MDPath:   mdPath,
+			Name:   fm.Name,
+			Dir:    skillDir,
+			Files:  dirFiles,
+			MDPath: mdPath,
 		})
 	}
 

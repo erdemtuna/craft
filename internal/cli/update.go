@@ -186,5 +186,3 @@ func writeManifestAtomic(path string, m *manifest.Manifest) error {
 		return manifest.Write(m, w)
 	})
 }
-
-
