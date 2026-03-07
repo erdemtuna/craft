@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,29 +182,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func writeManifestAtomic(path string, m *manifest.Manifest) error {
-	tmpPath := path + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("creating manifest: %w", err)
-	}
-
-	if err := manifest.Write(m, f); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("writing manifest: %w", err)
-	}
-
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("writing manifest: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("saving manifest: %w", err)
-	}
-
-	return nil
+	return writeAtomic(path, func(w io.Writer) error {
+		return manifest.Write(m, w)
+	})
 }
 
 

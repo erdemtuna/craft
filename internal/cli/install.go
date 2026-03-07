@@ -130,29 +130,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 }
 
 func writePinfileAtomic(path string, pf *pinfile.Pinfile) error {
-	tmpPath := path + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("creating pinfile: %w", err)
-	}
-
-	if err := pinfile.Write(pf, f); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("writing pinfile: %w", err)
-	}
-
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("writing pinfile: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("saving pinfile: %w", err)
-	}
-
-	return nil
+	return writeAtomic(path, func(w io.Writer) error {
+		return pinfile.Write(pf, w)
+	})
 }
 
 // resolveInstallTargets returns one or more install target paths.
