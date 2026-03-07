@@ -1,6 +1,9 @@
 package resolve
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Graph is a directed dependency graph used for cycle detection
 // and topological ordering.
@@ -40,7 +43,13 @@ func (g *Graph) DetectCycles() []string {
 	color := make(map[string]int)
 	parent := make(map[string]string)
 
+	ids := make([]string, 0, len(g.nodes))
 	for id := range g.nodes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	for _, id := range ids {
 		color[id] = white
 	}
 
@@ -75,7 +84,7 @@ func (g *Graph) DetectCycles() []string {
 		return nil
 	}
 
-	for id := range g.nodes {
+	for _, id := range ids {
 		if color[id] == white {
 			if cycle := dfs(id); cycle != nil {
 				return cycle

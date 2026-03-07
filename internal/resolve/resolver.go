@@ -316,7 +316,10 @@ func (r *Resolver) discoverSkillsForDep(cloneURL, commitSHA string) (names []str
 	if readErr == nil {
 		if craftYAML, ok := craftFiles["craft.yaml"]; ok {
 			depManifest, parseErr := manifest.Parse(bytes.NewReader(craftYAML))
-			if parseErr == nil && len(depManifest.Skills) > 0 {
+			if parseErr != nil {
+				return nil, nil, nil, fmt.Errorf("parsing craft.yaml in %s: %w", cloneURL, parseErr)
+			}
+			if len(depManifest.Skills) > 0 {
 				return r.discoverFromManifestSkills(cloneURL, commitSHA, depManifest.Skills)
 			}
 		}
@@ -497,20 +500,21 @@ func CollectSkillDirFiles(fetcher fetch.GitFetcher, cloneURL, commitSHA string, 
 // IsInfraFile returns true for common infrastructure files that should not
 // be included in root-level skill file collection. Subdirectory skills
 // are not affected — this only applies when SKILL.md is at the repo root.
+var infraFiles = map[string]bool{
+	"license": true, "licence": true,
+	"license.md": true, "licence.md": true,
+	"license.txt": true, "licence.txt": true,
+	"readme.md": true, "readme.txt": true, "readme": true,
+	"changelog.md": true, "changelog.txt": true, "changelog": true,
+	"contributing.md": true, "contributing.txt": true,
+	"code_of_conduct.md": true,
+	"craft.yaml": true,
+	".gitignore": true, ".gitattributes": true,
+}
+
 func IsInfraFile(path string) bool {
 	// Exclude common infrastructure files at any level
 	base := strings.ToLower(filepath.Base(path))
-	infraFiles := map[string]bool{
-		"license": true, "licence": true,
-		"license.md": true, "licence.md": true,
-		"license.txt": true, "licence.txt": true,
-		"readme.md": true, "readme.txt": true, "readme": true,
-		"changelog.md": true, "changelog.txt": true, "changelog": true,
-		"contributing.md": true, "contributing.txt": true,
-		"code_of_conduct.md": true,
-		"craft.yaml": true,
-		".gitignore": true, ".gitattributes": true,
-	}
 	if infraFiles[base] {
 		return true
 	}
