@@ -10,6 +10,7 @@ import (
 	"github.com/erdemtuna/craft/internal/agent"
 	"github.com/erdemtuna/craft/internal/fetch"
 	installlib "github.com/erdemtuna/craft/internal/install"
+	"github.com/erdemtuna/craft/internal/integrity"
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
@@ -96,6 +97,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	skillFiles, err := collectSkillFiles(fetcher, result)
 	if err != nil {
 		progress.Fail("Fetching failed")
+		return err
+	}
+
+	// Verify integrity of collected files against pinfile digests
+	if err := verifyIntegrity(result, skillFiles); err != nil {
+		progress.Fail("Integrity check failed")
 		return err
 	}
 
@@ -303,6 +310,41 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 	}
 
 	return skills, nil
+}
+
+// verifyIntegrity checks that the collected skill files match the integrity
+// digests stored in the pinfile. Returns an error if any dependency's files
+// produce a different digest than expected (indicating cache corruption).
+func verifyIntegrity(result *resolve.ResolveResult, skills map[string]map[string][]byte) error {
+	for _, dep := range result.Resolved {
+		pinEntry, ok := result.Pinfile.Resolved[dep.URL]
+		if !ok || pinEntry.Integrity == "" {
+			continue
+		}
+
+		// Reconstruct combined file map with original paths (matching resolver)
+		combined := make(map[string][]byte)
+		for i, skillName := range dep.Skills {
+			var prefix string
+			if i < len(dep.SkillPaths) && dep.SkillPaths[i] != "" {
+				prefix = dep.SkillPaths[i] + "/"
+			}
+
+			skillFiles, ok := skills[skillName]
+			if !ok {
+				continue
+			}
+			for relPath, content := range skillFiles {
+				combined[prefix+relPath] = content
+			}
+		}
+
+		got := integrity.Digest(combined)
+		if got != pinEntry.Integrity {
+			return fmt.Errorf("integrity mismatch for %s: expected %s, got %s (cache may be corrupted, try 'craft cache clean')", dep.URL, pinEntry.Integrity, got)
+		}
+	}
+	return nil
 }
 
 func countSkills(result *resolve.ResolveResult) int {

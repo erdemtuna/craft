@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/erdemtuna/craft/internal/fetch"
+	"github.com/erdemtuna/craft/internal/integrity"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
 )
@@ -384,5 +385,113 @@ func TestResolveInstallTargets_ExplicitPath(t *testing.T) {
 	}
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("resolveInstallTargets = %v, want [%q]", got, want)
+	}
+}
+
+func TestVerifyIntegrity_Pass(t *testing.T) {
+	// Build skill files matching what the resolver would produce
+	skillFiles := map[string]map[string][]byte{
+		"lint": {
+			"SKILL.md":    []byte("---\nname: lint\n---\n"),
+			"rules.yaml":  []byte("rules: []"),
+		},
+	}
+
+	// Compute the correct digest using original paths (with prefix)
+	combined := map[string][]byte{
+		"skills/lint/SKILL.md":   []byte("---\nname: lint\n---\n"),
+		"skills/lint/rules.yaml": []byte("rules: []"),
+	}
+	correctDigest := integrity.Digest(combined)
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "github.com/org/repo@v1.0.0",
+				Commit:     "abc123",
+				Skills:     []string{"lint"},
+				SkillPaths: []string{"skills/lint"},
+			},
+		},
+		Pinfile: &pinfile.Pinfile{
+			PinVersion: 1,
+			Resolved: map[string]pinfile.ResolvedEntry{
+				"github.com/org/repo@v1.0.0": {
+					Commit:    "abc123",
+					Integrity: correctDigest,
+					Skills:    []string{"lint"},
+				},
+			},
+		},
+	}
+
+	if err := verifyIntegrity(result, skillFiles); err != nil {
+		t.Fatalf("verifyIntegrity returned unexpected error: %v", err)
+	}
+}
+
+func TestVerifyIntegrity_Mismatch(t *testing.T) {
+	// Skill files that don't match the pinfile digest (simulating cache poisoning)
+	skillFiles := map[string]map[string][]byte{
+		"lint": {
+			"SKILL.md": []byte("TAMPERED CONTENT"),
+		},
+	}
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "github.com/org/repo@v1.0.0",
+				Commit:     "abc123",
+				Skills:     []string{"lint"},
+				SkillPaths: []string{"skills/lint"},
+			},
+		},
+		Pinfile: &pinfile.Pinfile{
+			PinVersion: 1,
+			Resolved: map[string]pinfile.ResolvedEntry{
+				"github.com/org/repo@v1.0.0": {
+					Commit:    "abc123",
+					Integrity: "sha256-originaldigest",
+					Skills:    []string{"lint"},
+				},
+			},
+		},
+	}
+
+	err := verifyIntegrity(result, skillFiles)
+	if err == nil {
+		t.Fatal("expected integrity mismatch error, got nil")
+	}
+	if !strings.Contains(err.Error(), "integrity mismatch") {
+		t.Errorf("expected 'integrity mismatch' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "craft cache clean") {
+		t.Errorf("expected 'craft cache clean' hint in error, got: %v", err)
+	}
+}
+
+func TestVerifyIntegrity_SkipsMissingPinEntry(t *testing.T) {
+	skillFiles := map[string]map[string][]byte{
+		"lint": {"SKILL.md": []byte("content")},
+	}
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "github.com/org/repo@v1.0.0",
+				Commit:     "abc123",
+				Skills:     []string{"lint"},
+				SkillPaths: []string{"skills/lint"},
+			},
+		},
+		Pinfile: &pinfile.Pinfile{
+			PinVersion: 1,
+			Resolved:   map[string]pinfile.ResolvedEntry{},
+		},
+	}
+
+	if err := verifyIntegrity(result, skillFiles); err != nil {
+		t.Fatalf("verifyIntegrity should skip deps without pinfile entry, got: %v", err)
 	}
 }
