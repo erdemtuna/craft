@@ -95,7 +95,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if latest != parsed.GitTag() {
+		if semver.Compare(strings.TrimPrefix(latest, "v"), parsed.Version) > 0 {
 			newURL := parsed.WithVersion(latest)
 			m.Dependencies[alias] = newURL
 			updated = true
