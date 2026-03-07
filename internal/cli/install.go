@@ -174,12 +174,12 @@ func resolveInstallTargets(target string) ([]string, error) {
 }
 
 func promptAgentChoice(agents []agent.DetectResult, in io.Reader, errOut io.Writer) ([]string, error) {
-	fmt.Fprintf(errOut, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
+	_, _ = fmt.Fprintf(errOut, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
 	for i, a := range agents {
-		fmt.Fprintf(errOut, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
+		_, _ = fmt.Fprintf(errOut, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
 	}
-	fmt.Fprintf(errOut, "  %d) Both\n", len(agents)+1)
-	fmt.Fprintf(errOut, "\nChoice [1-%d]: ", len(agents)+1)
+	_, _ = fmt.Fprintf(errOut, "  %d) Both\n", len(agents)+1)
+	_, _ = fmt.Fprintf(errOut, "\nChoice [1-%d]: ", len(agents)+1)
 
 	scanner := bufio.NewScanner(in)
 	if !scanner.Scan() {
@@ -232,7 +232,7 @@ func printDependencyTree(cmd *cobra.Command, m *manifest.Manifest, result *resol
 		})
 	}
 
-	fmt.Fprintln(cmd.ErrOrStderr())
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	ui.RenderTree(cmd.ErrOrStderr(), packageName, localSkills, deps)
 }
 

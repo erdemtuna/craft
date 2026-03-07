@@ -8,6 +8,32 @@ import (
 	"testing"
 )
 
+func testChdir(t *testing.T, dir string) {
+	t.Helper()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWd) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testWriteFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testMkdirAll(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRunAdd_NewDependency(t *testing.T) {
 	dir := t.TempDir()
 
@@ -18,13 +44,11 @@ version: 0.1.0
 skills:
   - ./skills/my-skill
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "my-skill"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "my-skill", "SKILL.md"), []byte("---\nname: my-skill\n---\n"), 0644)
+	testWriteFile(t, filepath.Join(dir, "craft.yaml"), []byte(manifestContent))
+	testMkdirAll(t, filepath.Join(dir, "skills", "my-skill"))
+	testWriteFile(t, filepath.Join(dir, "skills", "my-skill", "SKILL.md"), []byte("---\nname: my-skill\n---\n"))
 
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	testChdir(t, dir)
 
 	// Use the rootCmd to test — but craft add requires network access
 	// so we test argument parsing and manifest-not-found scenarios
@@ -51,13 +75,11 @@ version: 0.1.0
 skills:
   - ./skills/s
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	testWriteFile(t, filepath.Join(dir, "craft.yaml"), []byte(manifestContent))
+	testMkdirAll(t, filepath.Join(dir, "skills", "s"))
+	testWriteFile(t, filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"))
 
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	testChdir(t, dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -76,9 +98,7 @@ skills:
 func TestRunAdd_NoManifest(t *testing.T) {
 	dir := t.TempDir()
 
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	testChdir(t, dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -117,13 +137,11 @@ skills:
 dependencies:
   my-dep: github.com/org/repo@v1.0.0
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	testWriteFile(t, filepath.Join(dir, "craft.yaml"), []byte(manifestContent))
+	testMkdirAll(t, filepath.Join(dir, "skills", "s"))
+	testWriteFile(t, filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"))
 
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	testChdir(t, dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -150,13 +168,11 @@ version: 0.1.0
 skills:
   - ./skills/s
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	testWriteFile(t, filepath.Join(dir, "craft.yaml"), []byte(manifestContent))
+	testMkdirAll(t, filepath.Join(dir, "skills", "s"))
+	testWriteFile(t, filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"))
 
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	testChdir(t, dir)
 
 	// This will fail at resolution (network) but tests URL parsing + alias derivation
 	var buf bytes.Buffer

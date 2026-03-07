@@ -45,7 +45,7 @@ func (p *Progress) Start(msg string) {
 	if !p.isTTY {
 		return
 	}
-	fmt.Fprintf(p.w, "\r\033[K%s", msg)
+	_, _ = fmt.Fprintf(p.w, "\r\033[K%s", msg)
 }
 
 // Update prints a progress update, overwriting the previous line on TTY.
@@ -55,7 +55,7 @@ func (p *Progress) Update(msg string) {
 	if !p.isTTY {
 		return
 	}
-	fmt.Fprintf(p.w, "\r\033[K%s", msg)
+	_, _ = fmt.Fprintf(p.w, "\r\033[K%s", msg)
 }
 
 // UpdateCount prints a counted progress line like "Fetching dependency 2/5...".
@@ -70,7 +70,7 @@ func (p *Progress) Done(msg string) {
 	if !p.isTTY {
 		return
 	}
-	fmt.Fprintf(p.w, "\r\033[K%s\n", msg)
+	_, _ = fmt.Fprintf(p.w, "\r\033[K%s\n", msg)
 }
 
 // Fail clears the progress line and prints an error message.
@@ -80,7 +80,7 @@ func (p *Progress) Fail(msg string) {
 	if !p.isTTY {
 		return
 	}
-	fmt.Fprintf(p.w, "\r\033[K%s\n", msg)
+	_, _ = fmt.Fprintf(p.w, "\r\033[K%s\n", msg)
 }
 
 // IsTTY returns whether progress output is enabled.

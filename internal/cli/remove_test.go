@@ -20,9 +20,9 @@ dependencies:
   my-dep: github.com/org/repo@v1.0.0
   other: github.com/org/other@v2.0.0
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
+	_ = os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
+	_ = os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
 
 	// Create pinfile with skills
 	pinContent := `pin_version: 1
@@ -38,16 +38,16 @@ resolved:
     skills:
       - other-skill
 `
-	os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
 
 	// Create installed skill directory
 	targetDir := filepath.Join(dir, "installed")
-	os.MkdirAll(filepath.Join(targetDir, "repo-skill"), 0755)
-	os.WriteFile(filepath.Join(targetDir, "repo-skill", "SKILL.md"), []byte("skill"), 0644)
+	_ = os.MkdirAll(filepath.Join(targetDir, "repo-skill"), 0755)
+	_ = os.WriteFile(filepath.Join(targetDir, "repo-skill", "SKILL.md"), []byte("skill"), 0644)
 
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -96,13 +96,13 @@ skills:
 dependencies:
   real-dep: github.com/org/repo@v1.0.0
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
+	_ = os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
+	_ = os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
 
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -133,9 +133,9 @@ dependencies:
   dep-a: github.com/org/a@v1.0.0
   dep-b: github.com/org/b@v1.0.0
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
+	_ = os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
+	_ = os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
 
 	// Both deps provide "shared-skill", dep-a also provides "unique-a"
 	pinContent := `pin_version: 1
@@ -152,16 +152,16 @@ resolved:
     skills:
       - shared-skill
 `
-	os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
 
 	// Create installed skill directories
 	targetDir := filepath.Join(dir, "installed")
-	os.MkdirAll(filepath.Join(targetDir, "shared-skill"), 0755)
-	os.MkdirAll(filepath.Join(targetDir, "unique-a"), 0755)
+	_ = os.MkdirAll(filepath.Join(targetDir, "shared-skill"), 0755)
+	_ = os.MkdirAll(filepath.Join(targetDir, "unique-a"), 0755)
 
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
@@ -195,9 +195,9 @@ skills:
 dependencies:
   only-dep: github.com/org/repo@v1.0.0
 `
-	os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
-	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
-	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.yaml"), []byte(manifestContent), 0644)
+	_ = os.MkdirAll(filepath.Join(dir, "skills", "s"), 0755)
+	_ = os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("---\nname: s\n---\n"), 0644)
 
 	pinContent := `pin_version: 1
 resolved:
@@ -207,14 +207,14 @@ resolved:
     skills:
       - the-skill
 `
-	os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "craft.pin.yaml"), []byte(pinContent), 0644)
 
 	targetDir := filepath.Join(dir, "installed")
-	os.MkdirAll(filepath.Join(targetDir, "the-skill"), 0755)
+	_ = os.MkdirAll(filepath.Join(targetDir, "the-skill"), 0755)
 
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(dir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(dir)
 
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)

@@ -17,7 +17,7 @@ type DepNode struct {
 // RenderTree writes a box-drawing dependency tree to w.
 // localSkills are shown first under "Local skills:", then remote dependencies.
 func RenderTree(w io.Writer, packageName string, localSkills []string, deps []DepNode) {
-	fmt.Fprintf(w, "%s\n", packageName)
+	_, _ = fmt.Fprintf(w, "%s\n", packageName)
 
 	hasLocal := len(localSkills) > 0
 	hasDeps := len(deps) > 0
@@ -29,13 +29,13 @@ func RenderTree(w io.Writer, packageName string, localSkills []string, deps []De
 			connector = "└── "
 			childPrefix = "    "
 		}
-		fmt.Fprintf(w, "%sLocal skills\n", connector)
+		_, _ = fmt.Fprintf(w, "%sLocal skills\n", connector)
 		for i, skill := range localSkills {
 			skillConn := "├── "
 			if i == len(localSkills)-1 {
 				skillConn = "└── "
 			}
-			fmt.Fprintf(w, "%s%s%s\n", childPrefix, skillConn, skill)
+			_, _ = fmt.Fprintf(w, "%s%s%s\n", childPrefix, skillConn, skill)
 		}
 	}
 
@@ -55,14 +55,14 @@ func RenderTree(w io.Writer, packageName string, localSkills []string, deps []De
 			childPrefix = "    "
 		}
 
-		fmt.Fprintf(w, "%s%s (%s)\n", connector, dep.Alias, dep.URL)
+		_, _ = fmt.Fprintf(w, "%s%s (%s)\n", connector, dep.Alias, dep.URL)
 
 		for j, skill := range dep.Skills {
 			skillConn := "├── "
 			if j == len(dep.Skills)-1 {
 				skillConn = "└── "
 			}
-			fmt.Fprintf(w, "%s%s%s\n", childPrefix, skillConn, skill)
+			_, _ = fmt.Fprintf(w, "%s%s%s\n", childPrefix, skillConn, skill)
 		}
 	}
 }
