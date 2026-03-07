@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/erdemtuna/craft/internal/fetch"
 	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/manifest"
+	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -85,19 +85,22 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	m.Dependencies[alias] = depURL
 
 	// Validate by resolving with full manifest
-	cacheRoot, err := fetch.DefaultCacheRoot()
+	fetcher, err := newFetcher()
 	if err != nil {
 		return err
 	}
-	cache, err := fetch.NewCache(cacheRoot)
-	if err != nil {
-		return err
+
+	// Load existing pinfile to preserve pins for unchanged deps
+	var existingPinfile *pinfile.Pinfile
+	pfPath := filepath.Join(root, "craft.pin.yaml")
+	if pf, err := pinfile.ParseFile(pfPath); err == nil {
+		existingPinfile = pf
 	}
-	fetcher := fetch.NewGoGitFetcher(cache)
 
 	resolver := resolve.NewResolver(fetcher)
 	result, err := resolver.Resolve(m, resolve.ResolveOptions{
-		ForceResolve: map[string]bool{depURL: true},
+		ExistingPinfile: existingPinfile,
+		ForceResolve:    map[string]bool{depURL: true},
 	})
 	if err != nil {
 		return fmt.Errorf("dependency verification failed: %w", err)

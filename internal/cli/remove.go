@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,6 +39,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	manifestPath := filepath.Join(root, "craft.yaml")
 	m, err := manifest.ParseFile(manifestPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
+		}
 		return fmt.Errorf("reading craft.yaml: %w", err)
 	}
 
@@ -74,8 +78,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if pfErr == nil {
 		// Collect all skills still needed by remaining dependencies
 		remainingSkills := make(map[string]bool)
-		for remainingAlias, remainingURL := range m.Dependencies {
-			_ = remainingAlias
+		for _, remainingURL := range m.Dependencies {
 			if entry, ok := pf.Resolved[remainingURL]; ok {
 				for _, s := range entry.Skills {
 					remainingSkills[s] = true
@@ -110,6 +113,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 			var cleaned []string
 			for _, skillName := range orphaned {
+				removed := false
 				for _, tp := range targetPath {
 					skillDir := filepath.Join(tp, skillName)
 					// Path traversal protection
@@ -129,10 +133,14 @@ func runRemove(cmd *cobra.Command, args []string) error {
 					if _, err := os.Stat(skillDir); err == nil {
 						if err := os.RemoveAll(skillDir); err != nil {
 							cmd.PrintErrf("  warning: could not remove %s: %v\n", skillDir, err)
+						} else {
+							removed = true
 						}
 					}
 				}
-				cleaned = append(cleaned, skillName)
+				if removed {
+					cleaned = append(cleaned, skillName)
+				}
 			}
 
 			if len(cleaned) > 0 {

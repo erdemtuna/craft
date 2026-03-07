@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,7 +42,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	manifestPath := filepath.Join(root, "craft.yaml")
 	m, err := manifest.ParseFile(manifestPath)
 	if err != nil {
-		return fmt.Errorf("reading craft.yaml: %w\n  hint: run `craft init` to create one", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
+		}
+		return fmt.Errorf("reading craft.yaml: %w", err)
 	}
 
 	if len(m.Dependencies) == 0 {
@@ -50,15 +54,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Set up cache and fetcher
-	cacheRoot, err := fetch.DefaultCacheRoot()
+	fetcher, err := newFetcher()
 	if err != nil {
 		return err
 	}
-	cache, err := fetch.NewCache(cacheRoot)
-	if err != nil {
-		return err
-	}
-	fetcher := fetch.NewGoGitFetcher(cache)
 
 	// Determine which deps to update
 	var targetAlias string
@@ -105,7 +104,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if !updated {
-		progress.Done("All dependencies are up to date.")
+		msg := "All dependencies are up to date."
+		progress.Done(msg)
+		if !progress.IsTTY() {
+			cmd.Println(msg)
+		}
 		return nil
 	}
 
@@ -165,7 +168,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	skillCount := countSkills(result)
-	progress.Done(fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, strings.Join(targetPaths, ", ")))
+	msg := fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, strings.Join(targetPaths, ", "))
+	progress.Done(msg)
+	if !progress.IsTTY() {
+		cmd.Println(msg)
+	}
 
 	// Print dependency tree to stderr
 	printDependencyTree(cmd, m, result)

@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +46,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	// Parse manifest
 	m, err := manifest.ParseFile(filepath.Join(root, "craft.yaml"))
 	if err != nil {
-		return fmt.Errorf("reading craft.yaml: %w\n  hint: run `craft init` to create one", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
+		}
+		return fmt.Errorf("reading craft.yaml: %w", err)
 	}
 
 	if len(m.Dependencies) == 0 {
@@ -60,15 +65,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	// Set up cache and fetcher
-	cacheRoot, err := fetch.DefaultCacheRoot()
+	fetcher, err := newFetcher()
 	if err != nil {
 		return err
 	}
-	cache, err := fetch.NewCache(cacheRoot)
-	if err != nil {
-		return err
-	}
-	fetcher := fetch.NewGoGitFetcher(cache)
 
 	// Resolve dependencies
 	progress.Start("Resolving dependencies...")
@@ -116,8 +116,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	skillCount := countSkills(result)
-	progress.Done(fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
-		skillCount, len(result.Resolved), strings.Join(targetPaths, ", ")))
+	msg := fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
+		skillCount, len(result.Resolved), strings.Join(targetPaths, ", "))
+	progress.Done(msg)
+	if !progress.IsTTY() {
+		cmd.Println(msg)
+	}
 
 	// Print dependency tree to stderr
 	printDependencyTree(cmd, m, result)
@@ -186,18 +190,18 @@ func resolveInstallTargets(target string) ([]string, error) {
 			strings.Join(names, ", "))
 	}
 
-	return promptAgentChoice(agents)
+	return promptAgentChoice(agents, os.Stdin, os.Stderr)
 }
 
-func promptAgentChoice(agents []agent.DetectResult) ([]string, error) {
-	fmt.Fprintf(os.Stderr, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
+func promptAgentChoice(agents []agent.DetectResult, in io.Reader, errOut io.Writer) ([]string, error) {
+	fmt.Fprintf(errOut, "\nMultiple AI agents detected. Where should skills be installed?\n\n")
 	for i, a := range agents {
-		fmt.Fprintf(os.Stderr, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
+		fmt.Fprintf(errOut, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
 	}
-	fmt.Fprintf(os.Stderr, "  %d) Both\n", len(agents)+1)
-	fmt.Fprintf(os.Stderr, "\nChoice [1-%d]: ", len(agents)+1)
+	fmt.Fprintf(errOut, "  %d) Both\n", len(agents)+1)
+	fmt.Fprintf(errOut, "\nChoice [1-%d]: ", len(agents)+1)
 
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(in)
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
 	}
@@ -353,4 +357,16 @@ func countSkills(result *resolve.ResolveResult) int {
 		count += len(dep.Skills)
 	}
 	return count
+}
+
+func newFetcher() (fetch.GitFetcher, error) {
+	cacheRoot, err := fetch.DefaultCacheRoot()
+	if err != nil {
+		return nil, err
+	}
+	cache, err := fetch.NewCache(cacheRoot)
+	if err != nil {
+		return nil, err
+	}
+	return fetch.NewGoGitFetcher(cache), nil
 }
