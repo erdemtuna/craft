@@ -38,7 +38,7 @@ func TestRootHelp(t *testing.T) {
 	}
 
 	output := buf.String()
-	for _, sub := range []string{"init", "validate", "version"} {
+	for _, sub := range []string{"init", "validate", "version", "list", "tree", "outdated"} {
 		if !strings.Contains(output, sub) {
 			t.Errorf("help output should list %q subcommand, got %q", sub, output)
 		}

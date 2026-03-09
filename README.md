@@ -134,6 +134,9 @@ go build -o craft ./cmd/craft
 | `craft update [alias]` | Update dependencies to latest semver tags |
 | `craft add [alias] <url>` | Add a dependency (verify, then update manifest) |
 | `craft remove <alias>` | Remove a dependency and clean up orphaned skills |
+| `craft list` | List resolved dependencies with versions and skill counts |
+| `craft tree` | Print the dependency tree |
+| `craft outdated` | Show available dependency updates |
 | `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions) |
 | `craft cache clean` | Remove all cached repositories from `~/.craft/cache/` |
 | `craft version` | Print version and exit |
@@ -176,6 +179,67 @@ Remove all cached git repositories from `~/.craft/cache/`.
 $ craft cache clean
 Removed cache directory: /home/user/.craft/cache
 ```
+
+### `craft list`
+
+Show all resolved dependencies from `craft.pin.yaml`.
+
+```bash
+$ craft list
+company-standards  v2.1.0  (2 skills)
+utility-skills     v1.0.0  (1 skill)
+
+# Show extended information including URLs and skill names
+$ craft list --detailed
+company-standards  v2.1.0  github.com/org/standards
+  skills: api-conventions, error-formats
+
+utility-skills     v1.0.0  github.com/org/utils
+  skills: git-helper
+```
+
+### `craft tree`
+
+Print the dependency tree showing local skills and all resolved dependencies.
+
+```bash
+$ craft tree
+my-package@1.0.0
+├── Local skills
+│   ├── skill-a
+│   └── skill-b
+├── company-standards (github.com/org/standards@v2.1.0)
+│   ├── api-conventions
+│   └── error-formats
+└── utility-skills (github.com/org/utils@v1.0.0)
+    └── git-helper
+```
+
+### `craft outdated`
+
+Check each direct dependency for newer versions. Exits with code 1 when updates are available (useful for CI).
+
+```bash
+$ craft outdated
+company-standards  v2.1.0 → v2.2.0  (minor)
+utility-skills     v1.0.0            (up to date)
+
+$ echo $?
+1
+```
+
+### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Enable verbose diagnostic output (shows fetches, version comparisons, cache operations) |
+
+### Operation Flags
+
+| Flag | Available On | Description |
+|------|-------------|-------------|
+| `--dry-run` | `install`, `update` | Show what would happen without making any changes |
+| `--target <path>` | `install`, `update`, `add`, `remove` | Override agent auto-detection with a custom install path |
 
 ## Manifest Reference (`craft.yaml`)
 
