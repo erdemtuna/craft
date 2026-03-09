@@ -89,7 +89,7 @@ Add `craft list` command that reads manifest + pinfile and prints a summary tabl
 - **`internal/cli/list.go`** (new file): New cobra command `listCmd` with `Use: "list"`, `Short: "List resolved dependencies"`, `RunE: runList`. Register `--detailed` bool flag. Implementation:
   1. Parse manifest via `manifest.ParseFile("craft.yaml")` — get `Dependencies` map (alias → URL) and package metadata
   2. Parse pinfile via `pinfile.ParseFile("craft.pin.yaml")` — get `Resolved` map
-  3. Handle missing pinfile → error with "run 'craft install' first" suggestion
+  3. Handle missing pinfile → extract a shared `loadManifestAndPinfile()` helper that both parses manifest + pinfile and returns a user-friendly error ("No craft.pin.yaml found. Run 'craft install' first.") when pinfile is missing. Place in a new `internal/cli/helpers.go` file. Phases 3 and 4 reuse this helper.
   4. Handle zero dependencies → print "No dependencies resolved." and return nil
   5. Join data: for each manifest dependency, find matching pinfile entry by URL key. Extract version via `resolve.ParseDepURL()` on the pinfile key
   6. Sort entries alphabetically by alias
@@ -130,7 +130,7 @@ Wire existing `ui.RenderTree()` to a standalone `craft tree` command. This is th
 - **`internal/cli/tree.go`** (new file): New cobra command `treeCmd` with `Use: "tree"`, `Short: "Print dependency tree"`, `RunE: runTree`. Implementation:
   1. Parse manifest — get package name, version, local skills
   2. Parse pinfile — get resolved dependencies
-  3. Handle missing pinfile → same error pattern as `craft list`
+  3. Handle missing pinfile → reuse `loadManifestAndPinfile()` helper from Phase 2
   4. Build `[]ui.DepNode` from pinfile data — follow exact pattern from `printDependencyTree()` at `install.go:211-237`
   5. Extract local skill names from manifest `Skills` paths — same logic as `install.go:218-223`
   6. Call `ui.RenderTree(cmd.OutOrStdout(), packageName, localSkills, deps)` — note: write to stdout (not stderr like install does) since this is the primary output, not a side effect
@@ -164,15 +164,16 @@ Add `craft outdated` command that checks each direct dependency against its remo
 
 - **`internal/cli/outdated.go`** (new file): New cobra command `outdatedCmd` with `Use: "outdated"`, `Short: "Show available dependency updates"`, `RunE: runOutdated`. Implementation:
   1. Parse manifest + pinfile (same pattern as list/tree)
-  2. Handle missing pinfile, zero dependencies (same error patterns)
-  3. Create fetcher via `newFetcher()` (reuse helper from `install.go:327-337` — may need to move to a shared location or keep as-is since it's package-level)
+  2. Handle missing pinfile, zero dependencies — reuse `loadManifestAndPinfile()` helper from Phase 2
+  3. Create fetcher via `newFetcher()` (reuse helper from `install.go:327-337` — it's package-level in the `cli` package so directly accessible)
   4. For each direct dependency (from manifest `Dependencies` map):
      a. Extract current version from pinfile key via `resolve.ParseDepURL()`
      b. Compute clone URL via `DepURL.HTTPSURL()` or `fetch.NormalizeCloneURL()`
      c. Call `fetcher.ListTags(cloneURL)` — wrap in error handling per-dependency
      d. Call `semver.FindLatest(tags)` — skip if no semver tags (warn)
-     e. Compare via `semver.Compare(current, latest)` — skip if up to date
-     f. Classify update type by comparing `semver.ParseParts()` results: if major differs → "major", else if minor differs → "minor", else → "patch"
+     e. Check whether pinned version tag exists in remote tag list — if absent, emit warning: "warning: pinned version vX.Y.Z not found in remote tags for <alias>". Still show current version with latest available.
+     f. Compare via `semver.Compare(current, latest)` — skip if up to date
+     g. Classify update type by comparing `semver.ParseParts()` results: if major differs → "major", else if minor differs → "minor", else → "patch"
   5. Print results sorted by alias: outdated deps show `alias  vCurrent → vLatest  (type)`, up-to-date deps show `alias  vCurrent  (up to date)`
   6. Track whether any dep is outdated — if so, return a sentinel error or use `os.Exit(1)` pattern
   7. Verbose output: log each fetch operation, version comparison result
@@ -191,7 +192,8 @@ Add `craft outdated` command that checks each direct dependency against its remo
   4. Zero dependencies → "No dependencies to check." message
   5. Fetch failure for one dep → error for that dep, continue checking others, exit 1
   6. Dependency with no semver tags → skip with warning
-  7. Major/minor/patch classification correctness
+  7. Dependency whose pinned version tag is absent from remote → warning + show current/latest
+  8. Major/minor/patch classification correctness
 
 ### Success Criteria
 
