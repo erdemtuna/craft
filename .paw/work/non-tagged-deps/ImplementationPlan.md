@@ -59,14 +59,16 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
   - Add `RefType` type (`string` enum: `RefTypeTag`, `RefTypeCommit`, `RefTypeBranch`) as exported constants
   - Extend `DepURL` struct with `Ref string` (the raw ref value — tag name, SHA, or branch name) and `RefType RefType`
   - Replace single regex with ref-type-aware parsing in `ParseDepURL`: after splitting on `@`, detect ref type by pattern — `branch:` prefix → Branch, `v` + semver → Tag, hex string ≥7 chars → Commit, else error
-  - Update `GitTag()` → rename to `GitRef()` returning the appropriate ref string for each type: tag → `"v" + version`, commit → SHA, branch → branch name
+  - Keep `Version` field for tag refs (backward compat); for non-tag refs, `Version` is empty and `Ref` holds the raw ref value
+  - Update `GitTag()` → rename to `GitRef()` returning the ref string to pass to `fetcher.ResolveRef()`: tag → `"v" + version`, commit → full SHA, branch → branch name (bare, no `branch:` prefix). This is a mechanical rename touching 4 call sites (`resolver.go:129,247,297`, `cli/add.go:132`)
   - Update `WithVersion()` to only work for tag refs (return error or empty for non-tag types)
-  - Add `RefString()` method returning the `@`-suffixed ref as it appears in URLs (e.g., `@v1.0.0`, `@abc1234`, `@branch:main`)
+  - Add `RefString()` method returning the ref as it appears in the URL after `@` (e.g., `v1.0.0`, `abc1234`, `branch:main`) — used for display and URL reconstruction; distinct from `GitRef()` which strips the `branch:` prefix
   - Update `String()` to reconstruct from parsed components when `Raw` is empty
 
 - **`internal/manifest/validate.go`**:
-  - Remove the duplicate `depURLPattern` regex (line 19)
-  - Replace inline regex check in `Validate()` (lines 53-55) with a call to `resolve.ParseDepURL()` — single source of truth for URL validation
+  - Update the `depURLPattern` regex (line 19) to accept all three ref formats (semver tag, commit SHA, branch ref) — keeping it in the `manifest` package to avoid a circular import (`resolve` already imports `manifest`, so `manifest` cannot import `resolve`)
+  - Update error messages in `Validate()` (lines 53-55) to reflect the expanded format
+  - Note: the regex in `manifest` is a validation-only check; `resolve.ParseDepURL()` remains the canonical parser with full struct population. Both must accept the same URL formats.
 
 - **`internal/resolve/depurl_test.go`**:
   - Add table-driven tests for commit SHA refs (7-char, 12-char, 40-char hex strings)
@@ -103,21 +105,24 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
 - **`internal/pinfile/types.go`**:
   - Add `RefType string \`yaml:"ref_type,omitempty"\`` to `ResolvedEntry` struct
 
+- **`internal/pinfile/parse.go`**:
+  - After YAML unmarshal, iterate all `ResolvedEntry` values and default empty `RefType` to `"tag"` — ensures backward compatibility with legacy pinfiles that lack the field
+
 - **`internal/pinfile/write.go`**:
   - Add `ref_type` field output after `commit` and before `integrity` in the `Write` function's YAML node construction (only when non-empty)
 
 - **`internal/fetch/gogit.go`**:
-  - Add commit SHA resolution path in `ResolveRef`: before trying tag/branch, check if `ref` looks like a hex SHA and attempt to resolve it directly as a commit hash via `repo.CommitObject(plumbing.NewHash(ref))`. This handles both full and short SHAs (go-git resolves short hashes).
+  - Add commit SHA resolution path in `ResolveRef`. The caller (resolver) dispatches by ref type and passes the appropriate ref string — for commit refs, the raw SHA is passed. In `ResolveRef`, add a check: if the ref looks like a hex string (≥7 chars), attempt to resolve it as a commit hash via `repo.CommitObject(plumbing.NewHash(ref))` before trying the tag/branch fallback chain. This handles both full and short SHAs.
 
 - **`internal/resolve/resolver.go`**:
-  - **Phase 3 (MVS)** (`resolver.go:76-167`): Restructure to handle ref types:
-    - Group all deps by `PackageIdentity()` as before
-    - For each identity group, check ref-type consistency — if mixed ref types exist, return conflict error (FR-012)
-    - For tag-only groups: existing MVS with `semver.Compare()` (unchanged)
-    - For commit-only groups: all must have the same SHA (or error — same package, different commits is a conflict)
-    - For branch-only groups: all must reference the same branch name (or error)
-  - **collectDeps** (`resolver.go:213-275`): Update `parsed.GitTag()` calls to use the new `GitRef()` method. Set `RefType` on collected `ResolvedDep`.
-  - **resolveOne** (`resolver.go:278-314`): Update `parsed.GitTag()` to `parsed.GitRef()`. Carry `RefType` through to the resolved dep.
+  - **MVS Phase** (`resolver.go:76-167`): Restructure to handle ref types. **Critical ordering**: ref-type consistency must be checked *before* any `semver.Compare()` call to avoid garbage comparisons:
+    1. Group all deps by `PackageIdentity()` as before
+    2. **First**: For each identity group, assert ref-type consistency — if mixed ref types exist (e.g., tag + branch), return conflict error immediately (FR-012: "conflicting ref types for package X — resolve manually")
+    3. **Then**: For tag-only groups: existing MVS with `semver.Compare()` (unchanged)
+    4. For commit-only groups: all must have the same SHA (or error — same package, different commits is a conflict)
+    5. For branch-only groups: all must reference the same branch name (or error)
+  - **collectDeps** (`resolver.go:213-275`): Update `parsed.GitTag()` calls to use the new `GitRef()` method. Set `RefType` on collected `ResolvedDep`. For non-tag refs, skip the `visited` version check (use identity + ref as the key instead).
+  - **resolveOne** (`resolver.go:278-314`): Update `parsed.GitTag()` to `parsed.GitRef()`. Carry `RefType` through to the resolved dep. **For branch-type deps**: skip the pinfile reuse optimization (`resolver.go:285-293`) — branch deps must always be re-resolved to capture HEAD changes. This is the resolver-level mechanism that enables `craft update` for branch deps; the CLI's `ForceResolve` map is the explicit trigger, but the resolver should also respect RefType to prevent stale branch pins during install.
   - **Phase 6 (Build pinfile)** (`resolver.go:194-209`): Set `RefType` on `pinfile.ResolvedEntry` from `ResolvedDep.RefType`
 
 - **`internal/resolve/resolver_test.go`**:
@@ -160,7 +165,7 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
   - Update `Long` description (line 22) and hint message (line 47) to include non-tagged ref formats
   - After `ParseDepURL`, add non-tagged dependency warning: if `RefType != Tag`, print yellow-text warning about weaker reproducibility guarantees
   - Update summary output (line 132): replace `parsed.GitTag()` with ref-type-appropriate display (e.g., `"commit: abc1234..."` or `"branch: main"`)
-  - For commit refs: resolve short SHA to full SHA via fetcher before storing in manifest. Store the full URL with the original ref in craft.yaml (the pinfile stores the resolved full SHA)
+  - Short SHA normalization: the manifest stores the user-provided ref as-is (e.g., `@abc1234`); the pinfile stores the full 40-char SHA after resolution. This preserves the user's intent in the manifest while ensuring the pinfile is exact. (Spec P1 acceptance #5 says "resolves before storing" — the pinfile is the authoritative storage; the manifest ref is an input declaration.)
 
 - **`internal/cli/update.go`**:
   - After `ParseDepURL` (line 84), branch by ref type:
@@ -202,11 +207,14 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
 ### Changes Required:
 
 - **`internal/validate/runner.go`**:
-  - Add `checkNonTaggedDeps(result *Result, m *manifest.Manifest)` method
-  - Call it from `Run()` after `checkManifest` (when manifest is valid)
-  - For each dependency URL: parse with `resolve.ParseDepURL`, check `RefType`
-  - If `RefType == Commit`: append `Warning{Message: "dependency \"<alias>\" uses a commit pin (<url>) — reproducible but frozen; no updates available"}`
-  - If `RefType == Branch`: append `Warning{Message: "dependency \"<alias>\" tracks a branch (<url>) — weaker reproducibility guarantees than tagged versions"}`
+  - Add `checkNonTaggedDeps(result *Result, m *manifest.Manifest, p *pinfile.Pinfile)` method
+  - Call it from `Run()` after `checkPinfile` (when both manifest and pinfile are available)
+  - For **direct** dependencies: parse each manifest dep URL with `resolve.ParseDepURL`, check `RefType`
+  - For **transitive** dependencies: iterate pinfile entries with non-empty `Source` field, check `RefType` field
+  - If `RefType == "commit"`: append `Warning{Message: "dependency \"<alias>\" uses a commit pin (<url>) — reproducible but frozen; no updates available"}`
+  - If `RefType == "branch"`: append `Warning{Message: "dependency \"<alias>\" tracks a branch (<url>) — weaker reproducibility guarantees than tagged versions"}`
+  - Note: using the pinfile for transitive coverage satisfies the spec's edge case requirement that "transitive non-tagged dependencies receive the same warning treatment as direct non-tagged dependencies"
+  - **Circular import note**: `validate` package importing `resolve` for `ParseDepURL` is safe — there's no reverse dependency. For transitive deps, use the pinfile's `ref_type` string field directly (no import needed).
 
 - **`internal/cli/validate.go`** (or wherever validate output is formatted):
   - Verify warnings are displayed in yellow text (check existing warning rendering pattern)
@@ -249,3 +257,15 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
 - Issue: none
 - Spec: `.paw/work/non-tagged-deps/Spec.md`
 - Research: `.paw/work/non-tagged-deps/CodeResearch.md`
+
+## Success Criteria Traceability
+
+| Success Criterion | Contributing Phases |
+|---|---|
+| SC-001: Add/install/use non-tagged skills | Phase 1, Phase 2, Phase 3 |
+| SC-002: Commit-pinned resolves to exact commit | Phase 1, Phase 2 |
+| SC-003: Branch-tracked updatable via craft update | Phase 2, Phase 3 |
+| SC-004: Mixed ref-type conflict error | Phase 2 |
+| SC-005: Warnings at add and validate time | Phase 3, Phase 4 |
+| SC-006: Tagged dep workflows unaffected | Phase 1, Phase 2, Phase 3 |
+| SC-007: Pinfile ref_type provenance | Phase 2 |
