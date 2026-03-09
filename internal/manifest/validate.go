@@ -14,9 +14,9 @@ var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 // No pre-release, build metadata, or leading zeros allowed.
 var semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
 
-// depURLPattern matches dependency URL format: host/org/repo@vMAJOR.MINOR.PATCH
-// The version component requires a 'v' prefix followed by strict semver.
-var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
+// depURLPattern matches dependency URL format: host/org/repo@<ref>
+// where ref is one of: vMAJOR.MINOR.PATCH (tag), hex≥7 (commit SHA), or branch:<name>.
+var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@(v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)|[0-9a-fA-F]{7,64}|branch:.+)$`)
 
 // Validate checks a parsed Manifest against all schema rules.
 // Returns a slice of all validation errors found (does not stop at first error).
@@ -52,7 +52,7 @@ func Validate(m *Manifest) []error {
 	// validate dependency URL format for each entry
 	for alias, url := range m.Dependencies {
 		if !depURLPattern.MatchString(url) {
-			errs = append(errs, fmt.Errorf("dependencies[%q]: %q does not match required format (host/org/repo@vMAJOR.MINOR.PATCH)", alias, url))
+			errs = append(errs, fmt.Errorf("dependencies[%q]: %q does not match required format (host/org/repo@<ref> where ref is vX.Y.Z, commit SHA, or branch:<name>)", alias, url))
 		}
 	}
 

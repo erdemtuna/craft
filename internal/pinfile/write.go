@@ -35,6 +35,11 @@ func Write(p *Pinfile, w io.Writer) error {
 			entryMap := &yaml.Node{Kind: yaml.MappingNode}
 
 			addScalar(entryMap, "commit", entry.Commit, "")
+
+			if entry.RefType != "" && entry.RefType != "tag" {
+				addScalar(entryMap, "ref_type", entry.RefType, "")
+			}
+
 			addScalar(entryMap, "integrity", entry.Integrity, "")
 
 			if entry.Source != "" {

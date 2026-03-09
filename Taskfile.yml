@@ -71,6 +71,13 @@ tasks:
     cmds:
       - go install -ldflags "{{.LDFLAGS}}" {{.CMD}}
 
+  tools:install:
+    desc: Install development tools (golangci-lint, govulncheck)
+    cmds:
+      - curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - echo "Development tools installed"
+
   hooks:install:
     desc: Install git hooks (pre-commit and pre-push)
     cmds:

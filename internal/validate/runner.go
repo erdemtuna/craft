@@ -9,6 +9,7 @@ import (
 
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
+	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/erdemtuna/craft/internal/skill"
 )
 
@@ -43,13 +44,16 @@ func (r *Runner) Run() *Result {
 	// This is handled in checkManifest via manifest.Validate
 
 	// Check 4: Pinfile validation and consistency
-	r.checkPinfile(result, m)
+	p := r.checkPinfile(result, m)
 
 	// Check 5: Name collision detection
 	r.checkNameCollisions(result, skillNames)
 
-	// Check 6: Skill path safety (done inline in checkSkills)
-	// Check 7: Symlink cycle detection (done inline in checkSkills)
+	// Check 6: Non-tagged dependency warnings
+	r.checkNonTaggedDeps(result, m, p)
+
+	// Check 7: Skill path safety (done inline in checkSkills)
+	// Check 8: Symlink cycle detection (done inline in checkSkills)
 
 	return result
 }
@@ -111,7 +115,7 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 		}
 		seen[cleaned] = true
 
-		// Check 6: Skill path safety — must be relative, within package root
+		// Check 7: Skill path safety — must be relative, within package root
 		if filepath.IsAbs(skillPath) {
 			result.Errors = append(result.Errors, &Error{
 				Category:   CategorySafety,
@@ -135,7 +139,7 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 
 		absPath := filepath.Join(r.Root, cleaned)
 
-		// Check 7: Verify directory exists (also catches symlink cycles
+		// Check 8: Verify directory exists (also catches symlink cycles
 		// since os.Stat follows symlinks and will error on cycles)
 		info, err := os.Stat(absPath)
 		if err != nil {
@@ -219,14 +223,14 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 }
 
 // checkPinfile validates the pinfile if it exists and checks consistency
-// with the manifest's dependencies.
-func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) {
+// with the manifest's dependencies. Returns the parsed pinfile (or nil).
+func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) *pinfile.Pinfile {
 	pinfilePath := filepath.Join(r.Root, "craft.pin.yaml")
 
 	_, err := os.Stat(pinfilePath)
 	if os.IsNotExist(err) {
 		// Pinfile is optional — no error
-		return
+		return nil
 	}
 
 	p, err := pinfile.ParseFile(pinfilePath)
@@ -237,7 +241,7 @@ func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) {
 			Message:    fmt.Sprintf("failed to parse: %v", err),
 			Suggestion: "Check craft.pin.yaml for YAML syntax errors",
 		})
-		return
+		return nil
 	}
 
 	// Structural validation
@@ -255,7 +259,7 @@ func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) {
 		result.Warnings = append(result.Warnings, &Warning{
 			Message: "craft.pin.yaml exists but craft.yaml has no dependencies — pinfile may be unnecessary",
 		})
-		return
+		return p
 	}
 
 	// Each manifest dependency should have a pinfile entry
@@ -289,6 +293,8 @@ func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) {
 			})
 		}
 	}
+
+	return p
 }
 
 // checkNameCollisions detects duplicate skill names across skill paths.
@@ -300,6 +306,48 @@ func (r *Runner) checkNameCollisions(result *Result, skillNames map[string][]str
 				Field:      name,
 				Message:    fmt.Sprintf("skill name %q exported by multiple paths: %s", name, strings.Join(paths, ", ")),
 				Suggestion: "Each skill name must be unique within the package — rename one of the conflicting skills",
+			})
+		}
+	}
+}
+
+// checkNonTaggedDeps warns about dependencies using non-tagged refs.
+// Checks direct deps via manifest URLs and transitive deps via pinfile ref_type.
+func (r *Runner) checkNonTaggedDeps(result *Result, m *manifest.Manifest, p *pinfile.Pinfile) {
+	// Check direct dependencies from manifest
+	for alias, url := range m.Dependencies {
+		parsed, err := resolve.ParseDepURL(url)
+		if err != nil {
+			continue
+		}
+		switch parsed.RefType {
+		case resolve.RefTypeBranch:
+			result.Warnings = append(result.Warnings, &Warning{
+				Message: fmt.Sprintf("dependency %q tracks a branch (%s) — weaker reproducibility guarantees than tagged versions", alias, url),
+			})
+		case resolve.RefTypeCommit:
+			result.Warnings = append(result.Warnings, &Warning{
+				Message: fmt.Sprintf("dependency %q uses a commit pin (%s) — reproducible but frozen; no updates available", alias, url),
+			})
+		}
+	}
+
+	// Check transitive dependencies from pinfile
+	if p == nil {
+		return
+	}
+	for url, entry := range p.Resolved {
+		if entry.Source == "" {
+			continue // direct dep — already checked above
+		}
+		switch entry.RefType {
+		case "branch":
+			result.Warnings = append(result.Warnings, &Warning{
+				Message: fmt.Sprintf("transitive dependency %s tracks a branch — weaker reproducibility guarantees", url),
+			})
+		case "commit":
+			result.Warnings = append(result.Warnings, &Warning{
+				Message: fmt.Sprintf("transitive dependency %s uses a commit pin — reproducible but frozen", url),
 			})
 		}
 	}

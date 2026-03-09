@@ -23,4 +23,7 @@ type ResolvedDep struct {
 	// Source is the dependency URL of the package that declared this
 	// dependency (empty for direct dependencies, set for transitive).
 	Source string
+
+	// RefType identifies the kind of reference (tag, commit, branch).
+	RefType RefType
 }

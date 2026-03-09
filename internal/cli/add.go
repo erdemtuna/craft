@@ -19,7 +19,11 @@ var addInstall bool
 var addCmd = &cobra.Command{
 	Use:   "add [alias] <url>",
 	Short: "Add a dependency",
-	Long: `Add a dependency to craft.yaml. The URL must be in the format host/org/repo@vMAJOR.MINOR.PATCH.
+	Long: `Add a dependency to craft.yaml. The URL must be in one of these formats:
+
+  host/org/repo@vMAJOR.MINOR.PATCH   (tagged version)
+  host/org/repo@<commit-sha>         (commit pin, ≥7 hex chars)
+  host/org/repo@branch:<name>        (branch tracking)
 
 If no alias is provided, one is derived from the repository name.
 The dependency is verified by resolving it before updating the manifest.`,
@@ -44,7 +48,17 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Validate URL format
 	parsed, err := resolve.ParseDepURL(depURL)
 	if err != nil {
-		return fmt.Errorf("%w\n  hint: expected format: github.com/org/repo@v1.0.0", err)
+		return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
+	}
+
+	// Warn about non-tagged dependencies
+	if parsed.RefType != resolve.RefTypeTag {
+		cmd.PrintErrln("⚠ Non-tagged dependency: " + depURL)
+		if parsed.RefType == resolve.RefTypeBranch {
+			cmd.PrintErrln("  Branch-tracked deps have weaker reproducibility guarantees.")
+		} else {
+			cmd.PrintErrln("  Commit-pinned deps are reproducible but frozen; no updates available.")
+		}
 	}
 
 	// Derive alias from repo name if not provided
@@ -129,7 +143,19 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if len(addedSkills) > 0 {
 		cmd.Printf("  skills: %s\n", strings.Join(addedSkills, ", "))
 	}
-	cmd.Printf("  version: %s\n", parsed.GitTag())
+	// Print ref-type-appropriate summary
+	switch parsed.RefType {
+	case resolve.RefTypeTag:
+		cmd.Printf("  version: %s\n", parsed.GitRef())
+	case resolve.RefTypeCommit:
+		ref := parsed.Ref
+		if len(ref) > 12 {
+			ref = ref[:12]
+		}
+		cmd.Printf("  commit: %s\n", ref)
+	case resolve.RefTypeBranch:
+		cmd.Printf("  branch: %s\n", parsed.Ref)
+	}
 
 	// Optionally run install
 	if addInstall {

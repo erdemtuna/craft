@@ -74,8 +74,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 	}
 
 	// Phase 3: MVS — group by package identity, select highest version.
-	// After selection, re-collect transitive deps for any package where
-	// MVS selected a version different from the one first visited.
+	// Non-tagged deps bypass version comparison; mixed ref-types error.
 	var selected map[string]ResolvedDep
 	for {
 		byIdentity := make(map[string][]ResolvedDep)
@@ -90,48 +89,100 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 
 		selected = make(map[string]ResolvedDep)
 		for identity, deps := range byIdentity {
-			best := deps[0]
-			// Error ignored: URL was validated in collectDeps
-			bestParsed, _ := ParseDepURL(best.URL)
+			// Check ref-type consistency before any version comparison
+			firstRefType := deps[0].RefType
 			for _, dep := range deps[1:] {
-				// Error ignored: URL was validated in collectDeps
-				parsed, _ := ParseDepURL(dep.URL)
-				if semver.Compare(parsed.Version, bestParsed.Version) > 0 {
-					best = dep
-					bestParsed = parsed
+				if dep.RefType != firstRefType {
+					return nil, fmt.Errorf("conflicting ref types for package %s — one dependency uses %s and another uses %s; resolve manually", identity, firstRefType, dep.RefType)
 				}
 			}
-			// Prefer direct dep metadata (Source == "") when available
-			for _, dep := range deps {
-				// Error ignored: URL was validated in collectDeps
-				depParsed, _ := ParseDepURL(dep.URL)
-				if depParsed.Version == bestParsed.Version && dep.Source == "" {
-					best.Alias = dep.Alias
-					best.Source = dep.Source
-					break
+
+			switch firstRefType {
+			case RefTypeTag:
+				// Existing MVS: select highest semver version
+				best := deps[0]
+				bestParsed, _ := ParseDepURL(best.URL)
+				for _, dep := range deps[1:] {
+					parsed, _ := ParseDepURL(dep.URL)
+					if semver.Compare(parsed.Version, bestParsed.Version) > 0 {
+						best = dep
+						bestParsed = parsed
+					}
+				}
+				// Prefer direct dep metadata (Source == "") when available
+				for _, dep := range deps {
+					depParsed, _ := ParseDepURL(dep.URL)
+					if depParsed.Version == bestParsed.Version && dep.Source == "" {
+						best.Alias = dep.Alias
+						best.Source = dep.Source
+						break
+					}
+				}
+				selected[identity] = best
+
+			case RefTypeCommit:
+				// All commit refs for the same package must have the same SHA
+				best := deps[0]
+				bestParsed, _ := ParseDepURL(best.URL)
+				for _, dep := range deps[1:] {
+					parsed, _ := ParseDepURL(dep.URL)
+					if parsed.Ref != bestParsed.Ref {
+						return nil, fmt.Errorf("conflicting commit SHAs for package %s: %s vs %s — resolve manually", identity, bestParsed.Ref, parsed.Ref)
+					}
+				}
+				selected[identity] = best
+
+			case RefTypeBranch:
+				// All branch refs for the same package must track the same branch
+				best := deps[0]
+				bestParsed, _ := ParseDepURL(best.URL)
+				for _, dep := range deps[1:] {
+					parsed, _ := ParseDepURL(dep.URL)
+					if parsed.Ref != bestParsed.Ref {
+						return nil, fmt.Errorf("conflicting branch names for package %s: %s vs %s — resolve manually", identity, bestParsed.Ref, parsed.Ref)
+					}
+				}
+				selected[identity] = best
+
+			default:
+				selected[identity] = deps[0]
+			}
+
+			// Prefer direct dep metadata for commit/branch ref types
+			if firstRefType == RefTypeCommit || firstRefType == RefTypeBranch {
+				if best, ok := selected[identity]; ok {
+					for _, dep := range deps {
+						if dep.Source == "" {
+							best.Alias = dep.Alias
+							best.Source = dep.Source
+							selected[identity] = best
+							break
+						}
+					}
 				}
 			}
-			selected[identity] = best
 		}
 
 		// Re-collect transitive deps for packages where MVS selected
-		// a different version than what was first visited.
+		// a different version than what was first visited (tag deps only).
 		changed := false
 		for identity, dep := range selected {
-			// Error ignored: URL was validated in collectDeps
+			if dep.RefType != RefTypeTag {
+				continue
+			}
 			parsed, _ := ParseDepURL(dep.URL)
 			visitedVersion, ok := visited[identity]
-			if !ok || visitedVersion == parsed.Version {
+			if !ok || visitedVersion == parsed.GitRef() {
 				continue
 			}
 
 			cloneURL := fetch.NormalizeCloneURL(identity)
-			commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+			commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 			if err != nil {
 				return nil, fmt.Errorf("resolving %s: %w", dep.URL, err)
 			}
 
-			visited[identity] = parsed.Version
+			visited[identity] = parsed.GitRef()
 
 			files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
 			if err != nil {
@@ -199,6 +250,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 	for _, dep := range resolved {
 		pf.Resolved[dep.URL] = pinfile.ResolvedEntry{
 			Commit:     dep.Commit,
+			RefType:    string(dep.RefType),
 			Integrity:  dep.Integrity,
 			Source:     dep.Source,
 			Skills:     dep.Skills,
@@ -227,9 +279,10 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		graph.AddEdge(parentID, identity)
 
 		dep := ResolvedDep{
-			URL:    depURL,
-			Alias:  alias,
-			Source: source,
+			URL:     depURL,
+			Alias:   alias,
+			Source:  source,
+			RefType: parsed.RefType,
 		}
 		allDeps = append(allDeps, dep)
 
@@ -237,14 +290,14 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		if _, ok := visited[identity]; ok {
 			continue
 		}
-		visited[identity] = parsed.Version
+		visited[identity] = parsed.GitRef()
 		if len(visited) > maxTotalDeps {
 			return nil, fmt.Errorf("dependency resolution exceeded maximum of %d total dependencies", maxTotalDeps)
 		}
 
 		cloneURL := fetch.NormalizeCloneURL(identity)
 
-		commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+		commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 		if err != nil {
 			return nil, fmt.Errorf("resolving %s: %w", depURL, err)
 		}
@@ -281,20 +334,21 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 		return dep, err
 	}
 
-	// Check pinfile reuse
-	if opts.ExistingPinfile != nil && !opts.ForceResolve[dep.URL] {
+	// Check pinfile reuse — skip for branch deps (must always re-resolve)
+	if opts.ExistingPinfile != nil && !opts.ForceResolve[dep.URL] && parsed.RefType != RefTypeBranch {
 		if entry, ok := opts.ExistingPinfile.Resolved[dep.URL]; ok {
 			dep.Commit = entry.Commit
 			dep.Integrity = entry.Integrity
 			dep.Skills = entry.Skills
 			dep.SkillPaths = entry.SkillPaths
+			dep.RefType = parsed.RefType
 			return dep, nil
 		}
 	}
 
 	cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
 
-	commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+	commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 	if err != nil {
 		return dep, fmt.Errorf("resolving %s: %w", dep.URL, err)
 	}

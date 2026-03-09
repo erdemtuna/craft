@@ -1,0 +1,9 @@
+schema_version: 1
+name: non-tagged-test
+version: 1.0.0
+skills:
+  - ./skills/my-skill
+dependencies:
+  tagged: github.com/org/tagged@v1.0.0
+  branched: github.com/org/branched@branch:main
+  pinned: github.com/org/pinned@abc1234def5678

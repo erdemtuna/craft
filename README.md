@@ -157,6 +157,20 @@ $ craft add utils github.com/acme/utility-skills@v1.0.0
 
 # Add and immediately install
 $ craft add --install github.com/acme/utility-skills@v1.0.0
+
+# Add a dependency from a branch (for repos without tags)
+$ craft add github.com/acme/experimental@branch:main
+⚠ Non-tagged dependency: github.com/acme/experimental@branch:main
+  Branch-tracked deps have weaker reproducibility guarantees.
+Added "experimental" → github.com/acme/experimental@branch:main
+  branch: main
+
+# Add a dependency pinned to a specific commit
+$ craft add github.com/acme/tools@abc1234def5678
+⚠ Non-tagged dependency: github.com/acme/tools@abc1234def5678
+  Commit-pinned deps are reproducible but frozen; no updates available.
+Added "tools" → github.com/acme/tools@abc1234def5678
+  commit: abc1234def56
 ```
 
 ### `craft remove`
@@ -253,8 +267,10 @@ license: MIT                # Optional
 skills:                     # Relative paths to skill directories
   - ./skills/my-skill
 
-dependencies:               # alias → host/org/repo@vX.Y.Z
-  utils: github.com/example/util-skills@v1.0.0
+dependencies:               # alias → host/org/repo@<ref>
+  utils: github.com/example/util-skills@v1.0.0           # tagged version
+  tools: github.com/example/dev-tools@branch:main        # branch tracking
+  legacy: github.com/example/old-skills@abc1234def5678   # commit pin
 ```
 
 ## `SKILL.md`
