@@ -75,6 +75,27 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
+		// Non-tag deps can't be checked for semver updates
+		switch parsed.RefType {
+		case resolve.RefTypeCommit:
+			results = append(results, depStatus{
+				alias:   alias,
+				current: parsed.Ref[:min(12, len(parsed.Ref))],
+				skipped: true,
+			})
+			verboseLog(cmd, "Skipping %s: commit-pinned dependencies are frozen", alias)
+			continue
+		case resolve.RefTypeBranch:
+			results = append(results, depStatus{
+				alias:   alias,
+				current: "branch:" + parsed.Ref,
+				skipped: true,
+			})
+			verboseLog(cmd, "Skipping %s: branch-tracked dependencies use 'craft update' instead", alias)
+			continue
+		}
+		// Only tag deps reach here
+
 		// Find current version from pinfile
 		currentVersion := parsed.Version
 		if pinKey, ok := pinKeyByIdentity[parsed.PackageIdentity()]; ok {
@@ -82,7 +103,7 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 				currentVersion = pinParsed.Version
 			}
 		} else {
-			verboseLog(cmd, "No pinfile entry for %s, using manifest version v%s", alias, currentVersion)
+			verboseLog(cmd, "No pinfile entry for %s, using declared version v%s", alias, currentVersion)
 		}
 
 		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())

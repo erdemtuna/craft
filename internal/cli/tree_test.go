@@ -12,7 +12,6 @@ func TestTreeWithDependencies(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local-skill
 dependencies:
@@ -39,7 +38,7 @@ resolved:
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "test-pkg@1.0.0") {
+	if !strings.Contains(output, "test-pkg") {
 		t.Errorf("tree should show package name, got %q", output)
 	}
 	if !strings.Contains(output, "local-skill") {
@@ -59,7 +58,6 @@ func TestTreeNoDependencies(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local-skill
 `))
@@ -79,7 +77,7 @@ resolved: {}
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "test-pkg@1.0.0") {
+	if !strings.Contains(output, "test-pkg") {
 		t.Errorf("tree should show package name, got %q", output)
 	}
 	if !strings.Contains(output, "local-skill") {
@@ -93,7 +91,6 @@ func TestTreeNoPinfile(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))

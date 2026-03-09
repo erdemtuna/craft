@@ -9,8 +9,8 @@ import (
 )
 
 // Write serializes a Manifest to the given writer in YAML format
-// with consistent field ordering: schema_version, name, version,
-// description, license, skills, dependencies, metadata.
+// with consistent field ordering: schema_version, name, description,
+// license, skills, dependencies, metadata.
 func Write(m *Manifest, w io.Writer) error {
 	// Build an ordered YAML document using yaml.v3 nodes for field ordering.
 	doc := &yaml.Node{Kind: yaml.DocumentNode}
@@ -18,7 +18,6 @@ func Write(m *Manifest, w io.Writer) error {
 
 	addField(mapping, "schema_version", m.SchemaVersion)
 	addField(mapping, "name", m.Name)
-	addField(mapping, "version", m.Version)
 
 	if m.Description != "" {
 		addField(mapping, "description", m.Description)

@@ -189,7 +189,6 @@ func TestSymlinkCycle(t *testing.T) {
 	// Create a craft.yaml pointing to a skill dir that has a symlink cycle
 	manifestContent := `schema_version: 1
 name: symlink-test
-version: 1.0.0
 skills:
   - ./skills/cyclic
 `
@@ -295,7 +294,6 @@ func TestDuplicateSkillPath(t *testing.T) {
 	// Create a manifest with duplicate paths
 	manifestContent := `schema_version: 1
 name: dup-test
-version: 1.0.0
 skills:
   - ./skills/my-skill
   - ./skills/my-skill

@@ -9,7 +9,6 @@ func TestValidateValid(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "my-package",
-		Version:       "1.0.0",
 		Skills:        []string{"./skills/one"},
 	}
 	errs := Validate(m)
@@ -22,7 +21,6 @@ func TestValidateWithDependencies(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "my-package",
-		Version:       "1.0.0",
 		Skills:        []string{"./skills/one"},
 		Dependencies: map[string]string{
 			"git-ops": "github.com/example/git@v1.0.0",
@@ -38,7 +36,6 @@ func TestValidateSchemaVersion(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 2,
 		Name:          "my-package",
-		Version:       "1.0.0",
 		Skills:        []string{"./skill"},
 	}
 	errs := Validate(m)
@@ -94,47 +91,10 @@ func TestValidateNameLength(t *testing.T) {
 	}
 }
 
-func TestValidateVersionFormats(t *testing.T) {
-	tests := []struct {
-		version string
-		wantErr bool
-	}{
-		{"1.0.0", false},
-		{"0.1.0", false},
-		{"10.20.30", false},
-		{"0.0.0", false},
-		{"", true},            // empty
-		{"1.0", true},         // missing patch
-		{"1", true},           // only major
-		{"1.0.0-alpha", true}, // pre-release suffix
-		{"1.0.0+build", true}, // build metadata
-		{"1.0.0-rc.1", true},  // release candidate
-		{"v1.0.0", true},      // v prefix
-		{"abc", true},         // not a version
-		{"1.0.0.0", true},     // too many parts
-		{"01.0.0", true},      // leading zero in major
-		{"0.01.0", true},      // leading zero in minor
-		{"1.0.00", true},      // leading zero in patch
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.version, func(t *testing.T) {
-			err := ValidateVersion(tc.version)
-			if tc.wantErr && err == nil {
-				t.Errorf("ValidateVersion(%q) should return error", tc.version)
-			}
-			if !tc.wantErr && err != nil {
-				t.Errorf("ValidateVersion(%q) returned unexpected error: %v", tc.version, err)
-			}
-		})
-	}
-}
-
 func TestValidateEmptySkills(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "my-package",
-		Version:       "1.0.0",
 		Skills:        []string{},
 	}
 	errs := Validate(m)
@@ -169,7 +129,6 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 			m := &Manifest{
 				SchemaVersion: 1,
 				Name:          "test",
-				Version:       "1.0.0",
 				Skills:        []string{"./skill"},
 				Dependencies:  map[string]string{"dep": tc.url},
 			}
@@ -192,14 +151,13 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 
 func TestValidateMultipleErrors(t *testing.T) {
 	m := &Manifest{
-		SchemaVersion: 2,     // invalid
-		Name:          "",    // missing
-		Version:       "bad", // invalid
-		Skills:        nil,   // empty
+		SchemaVersion: 2,   // invalid
+		Name:          "",  // missing
+		Skills:        nil, // empty
 	}
 	errs := Validate(m)
-	if len(errs) < 4 {
-		t.Errorf("Expected at least 4 errors, got %d: %v", len(errs), errs)
+	if len(errs) < 3 {
+		t.Errorf("Expected at least 3 errors, got %d: %v", len(errs), errs)
 	}
 }
 

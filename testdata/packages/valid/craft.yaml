@@ -1,6 +1,5 @@
 schema_version: 1
 name: valid-package
-version: 1.0.0
 description: A valid test package.
 skills:
   - ./skills/lint-check

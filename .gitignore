@@ -4,3 +4,5 @@ dist/
 *.out
 coverage.html
 .task/
+.paw/
+E2E_REAL_WORLD_TEST.md

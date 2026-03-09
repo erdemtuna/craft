@@ -40,7 +40,6 @@ func TestRunAdd_NewDependency(t *testing.T) {
 	// Create a minimal manifest
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/my-skill
 `
@@ -71,7 +70,6 @@ func TestRunAdd_InvalidURLFormat(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 `
@@ -131,7 +129,6 @@ func TestRunAdd_AlreadyExists(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:
@@ -164,7 +161,6 @@ func TestRunAdd_AliasDerivation(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 `

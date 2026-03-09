@@ -10,9 +10,6 @@ type Manifest struct {
 	// Name is the package name (lowercase alphanumeric with hyphens).
 	Name string `yaml:"name"`
 
-	// Version is the package version (strict semver: MAJOR.MINOR.PATCH).
-	Version string `yaml:"version"`
-
 	// Description is an optional human-readable package description.
 	Description string `yaml:"description,omitempty"`
 

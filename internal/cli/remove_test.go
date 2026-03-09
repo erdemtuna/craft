@@ -13,7 +13,6 @@ func TestRunRemove_ExistingDep(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:
@@ -94,7 +93,6 @@ func TestRunRemove_NonExistentAlias(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:
@@ -130,7 +128,6 @@ func TestRunRemove_SharedSkillRetained(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:
@@ -202,7 +199,6 @@ func TestRunRemove_LastDependency(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:
@@ -269,7 +265,6 @@ func TestRunRemove_BadDepURLWarns(t *testing.T) {
 
 	manifestContent := `schema_version: 1
 name: test-pkg
-version: 0.1.0
 skills:
   - ./skills/s
 dependencies:

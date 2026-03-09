@@ -34,7 +34,6 @@ Say your organization has a set of API conventions — naming rules, error respo
 # craft.yaml — published by the platform team
 schema_version: 1
 name: company-standards
-version: 2.1.0
 description: Org-wide API conventions, error formats, and naming rules.
 license: MIT
 
@@ -49,7 +48,6 @@ Now you're building a `code-reviewer` skill that reviews pull requests. It needs
 # craft.yaml — your team's skill package
 schema_version: 1
 name: code-reviewer
-version: 1.0.0
 description: PR review skill that enforces org standards.
 license: MIT
 
@@ -220,7 +218,7 @@ Print the dependency tree showing local skills and all resolved dependencies.
 
 ```bash
 $ craft tree
-my-package@1.0.0
+my-package
 ├── Local skills
 │   ├── skill-a
 │   └── skill-b
@@ -262,7 +260,6 @@ $ echo $?
 ```yaml
 schema_version: 1          # Always 1
 name: my-package            # Lowercase alphanumeric + hyphens
-version: 1.0.0              # Strict semver (MAJOR.MINOR.PATCH)
 description: …              # Optional
 license: MIT                # Optional
 

@@ -22,12 +22,9 @@ func runTree(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	verboseLog(cmd, "Loaded manifest: %s@%s", m.Name, m.Version)
+	verboseLog(cmd, "Loaded manifest: %s", m.Name)
 
 	packageName := m.Name
-	if m.Version != "" {
-		packageName += "@" + m.Version
-	}
 
 	// Extract local skill names from paths
 	var localSkills []string
