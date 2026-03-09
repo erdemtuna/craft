@@ -14,6 +14,24 @@ But there's no official way to declare or manage these dependencies. Without pro
 
 craft fixes this. It's a package manager for Agent Skills — think Go modules, but for skills.
 
+## Quick Start: Install Skills
+
+Found a skill package you want to use? One command:
+
+```bash
+$ craft get github.com/acme/company-standards@v2.1.0
+Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
+```
+
+That's it — skills are installed to your AI agent and tracked for updates. No project setup needed.
+
+```bash
+# Manage what you've installed
+$ craft list -g              # list globally installed skills
+$ craft update -g            # update to newer versions
+$ craft remove -g standards  # uninstall
+```
+
 ## How It Works
 
 craft borrows directly from Go's dependency model:
@@ -74,11 +92,11 @@ $ craft validate
 ✓ Dependency URLs well-formed
 ✓ No skill name collisions
 
-# Resolve, pin, and install dependencies to your agent's skill directory
+# Resolve, pin, and vendor dependencies to forge/ (project-local)
 $ craft install
 ```
 
-After install, `craft.pin.yaml` locks every dependency to an exact state:
+After install, `craft.pin.yaml` locks every dependency to an exact state, and `forge/` contains the vendored skill files (gitignored, reproducible from the pinfile):
 
 ```yaml
 # craft.pin.yaml (generated — do not edit)
@@ -129,8 +147,9 @@ go build -o craft ./cmd/craft
 
 | Command | Description |
 |---------|-------------|
+| `craft get [alias] <url> [url...]` | Install skills globally to your AI agent |
 | `craft init` | Interactive package setup with skill auto-discovery |
-| `craft install` | Resolve, pin, and install all dependencies |
+| `craft install` | Resolve, pin, and vendor dependencies to `forge/` |
 | `craft update [alias]` | Update dependencies (re-resolve branches, skip commit pins, bump tags) |
 | `craft add [alias] <url>` | Add a dependency (verify, then update manifest) |
 | `craft remove <alias>` | Remove a dependency and clean up orphaned skills |
@@ -140,6 +159,29 @@ go build -o craft ./cmd/craft
 | `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions, non-tagged warnings) |
 | `craft cache clean` | Remove all cached repositories from `~/.craft/cache/` |
 | `craft version` | Print version and exit |
+
+All management commands support `--global` / `-g` to operate on globally installed skills instead of the project manifest.
+
+### `craft get`
+
+Install skills from any repository directly into your AI agent's skill directory. No `craft init` or project setup required.
+
+```bash
+# Install a skill package
+$ craft get github.com/acme/company-standards@v2.1.0
+Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
+
+# Install with a custom alias
+$ craft get standards github.com/acme/company-standards@v2.1.0
+
+# Install multiple packages at once
+$ craft get github.com/acme/standards@v2.1.0 github.com/acme/utils@v1.0.0
+
+# Preview what would be installed
+$ craft get --dry-run github.com/acme/standards@v2.1.0
+```
+
+Global state is tracked at `~/.craft/craft.yaml` and `~/.craft/craft.pin.yaml` — auto-created on first use.
 
 ### `craft add`
 
@@ -155,7 +197,7 @@ Added "utility-skills" → github.com/acme/utility-skills@v1.0.0
 # Add with custom alias
 $ craft add utils github.com/acme/utility-skills@v1.0.0
 
-# Add and immediately install
+# Add and immediately vendor to forge/
 $ craft add --install github.com/acme/utility-skills@v1.0.0
 
 # Add a dependency from a branch (for repos without tags)
@@ -247,13 +289,14 @@ $ echo $?
 | Flag | Description |
 |------|-------------|
 | `--verbose`, `-v` | Enable verbose diagnostic output (shows fetches, version comparisons, cache operations) |
+| `--global`, `-g` | Operate on globally installed skills (`~/.craft/`) instead of the project manifest |
 
 ### Operation Flags
 
 | Flag | Available On | Description |
 |------|-------------|-------------|
-| `--dry-run` | `install`, `update` | Show what would happen without making any changes |
-| `--target <path>` | `install`, `update`, `add`, `remove` | Override agent auto-detection with a custom install path |
+| `--dry-run` | `install`, `update`, `get` | Show what would happen without making any changes |
+| `--target <path>` | `install`, `update`, `remove`, `get` | Override agent auto-detection with a custom install path |
 
 ## Manifest Reference (`craft.yaml`)
 
@@ -287,11 +330,10 @@ craft auto-detects your AI agent and installs skills to the correct directory:
 | Claude Code | `~/.claude/` | `~/.claude/skills/` |
 | GitHub Copilot | `~/.copilot/` | `~/.copilot/skills/` |
 
-When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection:
+When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection.
 
-```bash
-$ craft install --target ./my-skills
-```
+**Global installs** (`craft get`, `craft install -g`) write to agent skill directories.  
+**Project installs** (`craft install`) vendor to `forge/` in the project root (gitignored).
 
 ## Known Limitations
 
