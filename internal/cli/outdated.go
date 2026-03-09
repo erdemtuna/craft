@@ -55,6 +55,7 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 		updateType string
 		err        error
 		warning    string
+		skipped    bool
 	}
 
 	var results []depStatus
@@ -95,6 +96,7 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 				alias:   alias,
 				current: currentVersion,
 				warning: "no semver tags found",
+				skipped: true,
 			})
 			continue
 		}
@@ -151,6 +153,9 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 		}
 		if r.warning != "" {
 			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", r.alias, r.warning)
+		}
+		if r.skipped {
+			continue
 		}
 		if r.latest != "" {
 			fmt.Fprintf(w, "%s\tv%s → v%s\t(%s)\n", r.alias, r.current, r.latest, r.updateType)

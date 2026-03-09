@@ -10,6 +10,7 @@ func TestVerboseFlag(t *testing.T) {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"version", "--verbose"})
+	t.Cleanup(func() { verbose = false })
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -21,6 +22,7 @@ func TestVerboseShorthand(t *testing.T) {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"version", "-v"})
+	t.Cleanup(func() { verbose = false })
 
 	err := rootCmd.Execute()
 	if err != nil {
