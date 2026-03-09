@@ -255,6 +255,7 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 		}
 
 		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
+		prefix := parsed.PackageIdentity()
 
 		// Fetch tree once per dependency
 		allPaths, err := fetcher.ListTree(cloneURL, dep.Commit)
@@ -275,15 +276,17 @@ func collectSkillFiles(fetcher fetch.GitFetcher, result *resolve.ResolveResult) 
 
 			// Remap paths to be relative to skill directory
 			if skillDir != "" {
-				prefix := skillDir + "/"
+				dirPrefix := skillDir + "/"
 				mapped := make(map[string][]byte, len(files))
 				for p, content := range files {
-					mapped[strings.TrimPrefix(p, prefix)] = content
+					mapped[strings.TrimPrefix(p, dirPrefix)] = content
 				}
 				files = mapped
 			}
 
-			skills[skillName] = files
+			// Namespace by host/owner/repo to avoid cross-dep collisions
+			compositeKey := prefix + "/" + skillName
+			skills[compositeKey] = files
 		}
 	}
 
@@ -300,20 +303,27 @@ func verifyIntegrity(result *resolve.ResolveResult, skills map[string]map[string
 			continue
 		}
 
+		parsed, err := resolve.ParseDepURL(dep.URL)
+		if err != nil {
+			continue
+		}
+		prefix := parsed.PackageIdentity()
+
 		// Reconstruct combined file map with original paths (matching resolver)
 		combined := make(map[string][]byte)
 		for i, skillName := range dep.Skills {
-			var prefix string
+			var skillPathPrefix string
 			if i < len(dep.SkillPaths) && dep.SkillPaths[i] != "" {
-				prefix = dep.SkillPaths[i] + "/"
+				skillPathPrefix = dep.SkillPaths[i] + "/"
 			}
 
-			skillFiles, ok := skills[skillName]
+			compositeKey := prefix + "/" + skillName
+			skillFiles, ok := skills[compositeKey]
 			if !ok {
 				continue
 			}
 			for relPath, content := range skillFiles {
-				combined[prefix+relPath] = content
+				combined[skillPathPrefix+relPath] = content
 			}
 		}
 

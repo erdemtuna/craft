@@ -8,8 +8,10 @@ import (
 	"strings"
 )
 
-// Install copies skill files to the target directory as <target>/<skill-name>/.
-// Each entry in skills maps skill name to a map of relative file paths to contents.
+// Install copies skill files to the target directory.
+// Each entry in skills maps a composite key (host/owner/repo/skill-name) to
+// a map of relative file paths to contents. The composite key naturally creates
+// nested directories via filepath.Join.
 // Files are written to a staging directory first and swapped into place to avoid
 // leaving a skill in a partially-installed state if the process is interrupted.
 func Install(target string, skills map[string]map[string][]byte) error {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
+	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/spf13/cobra"
 )
 
@@ -111,11 +112,23 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				return nil
 			}
 
+			// Parse dep URL to get namespace prefix (host/owner/repo)
+			parsed, parseErr := resolve.ParseDepURL(depURL)
+			var nsPrefix string
+			if parseErr == nil {
+				nsPrefix = parsed.PackageIdentity()
+			}
+
 			var cleaned []string
 			for _, skillName := range orphaned {
 				removed := false
 				for _, tp := range targetPath {
-					skillDir := filepath.Join(tp, skillName)
+					var skillDir string
+					if nsPrefix != "" {
+						skillDir = filepath.Join(tp, nsPrefix, skillName)
+					} else {
+						skillDir = filepath.Join(tp, skillName)
+					}
 					// Path traversal protection
 					absSkillDir, err := filepath.Abs(skillDir)
 					if err != nil {
@@ -137,6 +150,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 							removed = true
 						}
 					}
+
+					// Clean up empty parent directories up to target root
+					if removed && nsPrefix != "" {
+						cleanEmptyParents(tp, filepath.Dir(skillDir))
+					}
 				}
 				if removed {
 					cleaned = append(cleaned, skillName)
@@ -150,6 +168,25 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// cleanEmptyParents removes empty directories from dir up to (but not
+// including) root. Uses os.Remove which fails on non-empty dirs — safe.
+func cleanEmptyParents(root, dir string) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return
+	}
+	for {
+		absDir, err := filepath.Abs(dir)
+		if err != nil || absDir == absRoot || !strings.HasPrefix(absDir, absRoot+string(filepath.Separator)) {
+			break
+		}
+		if err := os.Remove(dir); err != nil {
+			break // not empty or permission error
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 // availableAliases formats the available dependency aliases for error messages.
