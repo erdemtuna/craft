@@ -106,7 +106,9 @@ When you depend on a repo that has no manifest, craft falls back to **auto-disco
 ```yaml
 # This works even if acme/legacy-skills has no craft.yaml
 dependencies:
-  legacy: github.com/acme/legacy-skills@v1.0.0
+  legacy: github.com/acme/legacy-skills@v1.0.0           # if they have tags
+  legacy: github.com/acme/legacy-skills@branch:main       # or track a branch
+  legacy: github.com/acme/legacy-skills@abc1234def5678    # or pin a commit
 ```
 
 The only difference: repos without `craft.yaml` are treated as **leaf dependencies** — craft can't resolve transitive dependencies from them because there's no manifest declaring any. If `legacy-skills` itself depends on other packages, those won't be pulled in automatically. Once the upstream repo adds a `craft.yaml`, transitive resolution kicks in with no changes on your side.
@@ -131,13 +133,13 @@ go build -o craft ./cmd/craft
 |---------|-------------|
 | `craft init` | Interactive package setup with skill auto-discovery |
 | `craft install` | Resolve, pin, and install all dependencies |
-| `craft update [alias]` | Update dependencies to latest semver tags |
+| `craft update [alias]` | Update dependencies (re-resolve branches, skip commit pins, bump tags) |
 | `craft add [alias] <url>` | Add a dependency (verify, then update manifest) |
 | `craft remove <alias>` | Remove a dependency and clean up orphaned skills |
 | `craft list` | List resolved dependencies with versions and skill counts |
 | `craft tree` | Print the dependency tree |
 | `craft outdated` | Show available dependency updates |
-| `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions) |
+| `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions, non-tagged warnings) |
 | `craft cache clean` | Remove all cached repositories from `~/.craft/cache/` |
 | `craft version` | Print version and exit |
 
@@ -298,8 +300,8 @@ $ craft install --target ./my-skills
 
 - **go-git SSH limitations** — craft uses [go-git](https://github.com/go-git/go-git) for git operations. This means no `~/.ssh/config` ProxyJump support, no hardware token (YubiKey) auth, and no agent forwarding. Set `GITHUB_TOKEN` or `CRAFT_TOKEN` for private repos as a reliable alternative.
 - **No monorepo subpath support** — dependency URLs point to whole repositories (`github.com/org/repo@v1.0.0`). Subpath support (e.g., `repo/path/to/skills@v1`) is designed for but not yet implemented.
-- **No pre-release versions** — version tags must be strict semver (`vMAJOR.MINOR.PATCH`). Pre-release suffixes like `-beta.1` are rejected.
-- **No version ranges** — dependencies use exact versions. `craft update` bumps to the latest available tag; there are no `^` or `~` range constraints.
+- **No pre-release versions** — tagged version refs must be strict semver (`vMAJOR.MINOR.PATCH`). Pre-release suffixes like `-beta.1` are rejected. (Commit SHA and branch refs are unaffected.)
+- **No version ranges** — tagged dependencies use exact versions. `craft update` bumps tags to the latest available, re-resolves branch deps to HEAD, and skips commit pins; there are no `^` or `~` range constraints.
 - **Cache grows unbounded** — use `craft cache clean` periodically to reclaim disk space.
 
 ## Acknowledgments
