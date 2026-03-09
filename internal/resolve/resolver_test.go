@@ -35,6 +35,9 @@ func TestResolveEmpty(t *testing.T) {
 	if len(result.Resolved) != 0 {
 		t.Errorf("Expected 0 resolved, got %d", len(result.Resolved))
 	}
+	if result.Resolved == nil {
+		t.Error("Expected non-nil empty slice for Resolved, got nil")
+	}
 }
 
 func TestResolveSingleDep(t *testing.T) {

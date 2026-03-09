@@ -192,6 +192,56 @@ func TestAuthGitHubTokenSentToGitHub(t *testing.T) {
 	}
 }
 
+func TestAuthCraftTokenWhitespaceTrimmed(t *testing.T) {
+	resetWarningState(t)
+	t.Setenv("CRAFT_TOKEN", "  craft-secret\n")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("CRAFT_TOKEN_HOSTS", "")
+
+	auth := Auth("https://github.com/org/repo.git")
+	if auth == nil {
+		t.Fatal("Expected auth even with whitespace-padded CRAFT_TOKEN")
+	}
+	basic, ok := auth.(*http.BasicAuth)
+	if !ok {
+		t.Fatal("Expected *http.BasicAuth")
+	}
+	if basic.Password != "craft-secret" {
+		t.Errorf("Expected trimmed token %q, got %q", "craft-secret", basic.Password)
+	}
+}
+
+func TestAuthGitHubTokenWhitespaceTrimmed(t *testing.T) {
+	resetWarningState(t)
+	t.Setenv("CRAFT_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "\tgithub-secret  ")
+	t.Setenv("CRAFT_TOKEN_HOSTS", "")
+
+	auth := Auth("https://github.com/org/repo.git")
+	if auth == nil {
+		t.Fatal("Expected auth even with whitespace-padded GITHUB_TOKEN")
+	}
+	basic, ok := auth.(*http.BasicAuth)
+	if !ok {
+		t.Fatal("Expected *http.BasicAuth")
+	}
+	if basic.Password != "github-secret" {
+		t.Errorf("Expected trimmed token %q, got %q", "github-secret", basic.Password)
+	}
+}
+
+func TestAuthWhitespaceOnlyTokenIgnored(t *testing.T) {
+	resetWarningState(t)
+	t.Setenv("CRAFT_TOKEN", "   \n\t")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("CRAFT_TOKEN_HOSTS", "")
+
+	auth := Auth("https://github.com/org/repo.git")
+	if auth != nil {
+		t.Error("Expected nil auth for whitespace-only token")
+	}
+}
+
 func TestWrapAuthErrorPassthrough(t *testing.T) {
 	if err := WrapAuthError(nil, "url"); err != nil {
 		t.Error("Expected nil for nil error")
