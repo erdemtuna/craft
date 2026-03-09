@@ -31,16 +31,34 @@ func init() {
 func runRemove(cmd *cobra.Command, args []string) error {
 	alias := args[0]
 
-	root, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
+	var manifestPath, pfPath string
+	var err error
+
+	if globalFlag {
+		manifestPath, err = GlobalManifestPath()
+		if err != nil {
+			return err
+		}
+		pfPath, err = GlobalPinfilePath()
+		if err != nil {
+			return err
+		}
+	} else {
+		root, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting working directory: %w", err)
+		}
+		manifestPath = filepath.Join(root, "craft.yaml")
+		pfPath = filepath.Join(root, "craft.pin.yaml")
 	}
 
 	// Parse manifest
-	manifestPath := filepath.Join(root, "craft.yaml")
 	m, err := manifest.ParseFile(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if globalFlag {
+				return fmt.Errorf("no global skills installed\n  hint: use `craft get` to install skills")
+			}
 			return fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
 		}
 		return fmt.Errorf("reading craft.yaml: %w", err)
@@ -54,7 +72,6 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Identify skills from the removed dependency (from pinfile)
-	pfPath := filepath.Join(root, "craft.pin.yaml")
 	pf, pfErr := pinfile.ParseFile(pfPath)
 
 	var removedSkills []string
@@ -91,7 +108,20 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		// Clean up orphaned skills from install target
 		if len(orphaned) > 0 {
-			targetPath, err := resolveInstallTargets(removeTarget)
+			var targetPath []string
+			if globalFlag {
+				// Global: clean from agent directories
+				targetPath, err = resolveInstallTargets(removeTarget)
+			} else if removeTarget != "" {
+				// Project with explicit --target: use that path
+				targetPath = []string{removeTarget}
+			} else {
+				// Project: clean from forge/ directory
+				root, err := os.Getwd()
+				if err == nil {
+					targetPath = []string{filepath.Join(root, "forge")}
+				}
+			}
 			if err != nil {
 				// If we can't determine target, just report what was orphaned
 				cmd.Printf("  orphaned skills (manual cleanup needed): %s\n", strings.Join(orphaned, ", "))

@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/erdemtuna/craft/internal/manifest"
+	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/validate"
 	"github.com/spf13/cobra"
 )
@@ -13,9 +16,13 @@ import (
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate a craft package",
-	Long:  "Run all validation checks on the current craft package: schema, skill paths, frontmatter, dependency URLs, pinfile consistency, and name collisions.",
+	Long:  "Run all validation checks on the current craft package: schema, skill paths, frontmatter, dependency URLs, pinfile consistency, and name collisions.\nWith --global/-g: validate the global manifest and pinfile.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if globalFlag {
+			return runValidateGlobal(cmd)
+		}
+
 		root, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
@@ -45,4 +52,42 @@ var validateCmd = &cobra.Command{
 		fmt.Fprintf(os.Stderr, "\n%d validation error(s) found\n", len(result.Errors))
 		return fmt.Errorf("validation failed with %d error(s)", len(result.Errors))
 	},
+}
+
+func runValidateGlobal(cmd *cobra.Command) error {
+	manifestPath, err := GlobalManifestPath()
+	if err != nil {
+		return err
+	}
+
+	m, err := manifest.ParseFile(manifestPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("no global manifest found\n  hint: use `craft get` to install skills")
+		}
+		return fmt.Errorf("reading global craft.yaml: %w", err)
+	}
+
+	errs := manifest.ValidateGlobal(m)
+	if len(errs) == 0 {
+		cmd.Println("✓ Global manifest is valid")
+
+		// Also check pinfile if it exists
+		pfPath, err := GlobalPinfilePath()
+		if err != nil {
+			return err
+		}
+		if _, err := pinfile.ParseFile(pfPath); err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				fmt.Fprintf(os.Stderr, "warning: global pinfile issue: %v\n", err)
+			}
+		}
+		return nil
+	}
+
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "error: %s\n", e.Error())
+	}
+	fmt.Fprintf(os.Stderr, "\n%d validation error(s) found\n", len(errs))
+	return fmt.Errorf("validation failed with %d error(s)", len(errs))
 }
