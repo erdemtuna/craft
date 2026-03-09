@@ -321,3 +321,35 @@ skills:
 		t.Error("Expected 'duplicate skill path' error")
 	}
 }
+
+func TestNonTaggedDepsWarnings(t *testing.T) {
+	root := filepath.Join(testdataDir(), "non-tagged-deps")
+	runner := NewRunner(root)
+	result := runner.Run()
+
+	// Should have warnings for branch and commit deps, but not tagged
+	branchWarning := false
+	commitWarning := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, "tracks a branch") && strings.Contains(w.Message, "branched") {
+			branchWarning = true
+		}
+		if strings.Contains(w.Message, "commit pin") && strings.Contains(w.Message, "pinned") {
+			commitWarning = true
+		}
+	}
+
+	if !branchWarning {
+		t.Error("Expected branch tracking warning for 'branched' dependency")
+	}
+	if !commitWarning {
+		t.Error("Expected commit pin warning for 'pinned' dependency")
+	}
+
+	// Should NOT have warning for the 'tagged' alias dep
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, `"tagged"`) {
+			t.Errorf("Unexpected warning for tagged dependency: %s", w.Message)
+		}
+	}
+}
