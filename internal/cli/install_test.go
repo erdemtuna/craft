@@ -355,9 +355,15 @@ func TestCollectSkillFiles_SkillPathsShorterThanSkills(t *testing.T) {
 		t.Fatalf("collectSkillFiles returned error: %v", err)
 	}
 
-	// Both skills should be present
+	// Both skills should be present with composite keys
 	if len(skills) != 2 {
 		t.Errorf("expected 2 skills, got %d", len(skills))
+	}
+	if _, ok := skills["github.com/org/repo/skill1"]; !ok {
+		t.Error("expected composite key 'github.com/org/repo/skill1'")
+	}
+	if _, ok := skills["github.com/org/repo/skill2"]; !ok {
+		t.Error("expected composite key 'github.com/org/repo/skill2'")
 	}
 }
 
@@ -577,5 +583,35 @@ func TestVerifyIntegrity_SkipsMissingPinEntry(t *testing.T) {
 
 	if err := verifyIntegrity(result, skillFiles); err != nil {
 		t.Fatalf("verifyIntegrity should skip deps without pinfile entry, got: %v", err)
+	}
+}
+
+func TestVerifyIntegrity_BadDepURL(t *testing.T) {
+	skillFiles := map[string]map[string][]byte{
+		"github.com/org/repo/lint": {"SKILL.md": []byte("content")},
+	}
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:    "not-a-valid-url",
+				Commit: "abc123",
+				Skills: []string{"lint"},
+			},
+		},
+		Pinfile: &pinfile.Pinfile{
+			PinVersion: 1,
+			Resolved: map[string]pinfile.ResolvedEntry{
+				"not-a-valid-url": {Integrity: "sha256:abc"},
+			},
+		},
+	}
+
+	err := verifyIntegrity(result, skillFiles)
+	if err == nil {
+		t.Fatal("expected error for invalid dep URL")
+	}
+	if !strings.Contains(err.Error(), "verifying integrity for") {
+		t.Errorf("error should mention context, got: %v", err)
 	}
 }
