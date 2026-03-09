@@ -17,6 +17,24 @@ var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?
 // Validate checks a parsed Manifest against all schema rules.
 // Returns a slice of all validation errors found (does not stop at first error).
 func Validate(m *Manifest) []error {
+	errs := validateCommon(m)
+
+	// skills must be non-empty
+	if len(m.Skills) == 0 {
+		errs = append(errs, fmt.Errorf("skills: must contain at least one skill path"))
+	}
+
+	return errs
+}
+
+// ValidateGlobal validates a global manifest. Identical to Validate but
+// does not require the skills list to be non-empty.
+func ValidateGlobal(m *Manifest) []error {
+	return validateCommon(m)
+}
+
+// validateCommon runs validation rules shared between project and global manifests.
+func validateCommon(m *Manifest) []error {
 	var errs []error
 
 	// schema_version must be 1
@@ -31,11 +49,6 @@ func Validate(m *Manifest) []error {
 		errs = append(errs, fmt.Errorf("name: must be 1–128 characters, got %d", len(m.Name)))
 	} else if !namePattern.MatchString(m.Name) {
 		errs = append(errs, fmt.Errorf("name: %q does not match required format (lowercase alphanumeric with hyphens, e.g. 'my-package')", m.Name))
-	}
-
-	// skills must be non-empty
-	if len(m.Skills) == 0 {
-		errs = append(errs, fmt.Errorf("skills: must contain at least one skill path"))
 	}
 
 	// validate dependency URL format for each entry

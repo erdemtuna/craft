@@ -39,17 +39,35 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	root, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
+	var root, manifestPath, pfPath string
+	var err error
+
+	if globalFlag {
+		manifestPath, err = GlobalManifestPath()
+		if err != nil {
+			return err
+		}
+		pfPath, err = GlobalPinfilePath()
+		if err != nil {
+			return err
+		}
+	} else {
+		root, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting working directory: %w", err)
+		}
+		manifestPath = filepath.Join(root, "craft.yaml")
+		pfPath = filepath.Join(root, "craft.pin.yaml")
 	}
 
 	progress := ui.NewProgress()
 
-	manifestPath := filepath.Join(root, "craft.yaml")
 	m, err := manifest.ParseFile(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if globalFlag {
+				return fmt.Errorf("no global skills installed\n  hint: use `craft get` to install skills")
+			}
 			return fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
 		}
 		return fmt.Errorf("reading craft.yaml: %w", err)
@@ -78,7 +96,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Load existing pinfile (needed for branch update comparison)
 	var existingPinfile *pinfile.Pinfile
-	pfPath := filepath.Join(root, "craft.pin.yaml")
 	if pf, err := pinfile.ParseFile(pfPath); err == nil {
 		existingPinfile = pf
 	}
@@ -194,28 +211,58 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Install
 	progress.Update("Installing skills...")
-	targetPaths, err := resolveInstallTargets(updateTarget)
-	if err != nil {
-		return err
-	}
-
-	skillFiles, err := collectSkillFiles(fetcher, result)
-	if err != nil {
-		return err
-	}
-
-	for _, targetPath := range targetPaths {
-		if err := installlib.Install(targetPath, skillFiles); err != nil {
-			progress.Fail("Installation failed")
-			return fmt.Errorf("installation failed: %w", err)
+	if globalFlag {
+		// Global: install to agent directories
+		targetPaths, err := resolveInstallTargets(updateTarget)
+		if err != nil {
+			return err
 		}
-	}
 
-	skillCount := countSkills(result)
-	msg := fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, strings.Join(targetPaths, ", "))
-	progress.Done(msg)
-	if !progress.IsTTY() {
-		cmd.Println(msg)
+		skillFiles, err := collectSkillFiles(fetcher, result)
+		if err != nil {
+			return err
+		}
+
+		for _, targetPath := range targetPaths {
+			if err := installlib.Install(targetPath, skillFiles); err != nil {
+				progress.Fail("Installation failed")
+				return fmt.Errorf("installation failed: %w", err)
+			}
+		}
+
+		skillCount := countSkills(result)
+		msg := fmt.Sprintf("Updated and installed %d skill(s) to %s", skillCount, strings.Join(targetPaths, ", "))
+		progress.Done(msg)
+		if !progress.IsTTY() {
+			cmd.Println(msg)
+		}
+	} else {
+		// Project: vendor to forge/
+		if updateTarget != "" {
+			return fmt.Errorf("--target is not supported for project updates (skills vendor to forge/)\n  hint: use `craft update -g --target %s` for global update to a custom path", updateTarget)
+		}
+		forgePath := filepath.Join(root, "forge")
+
+		skillFiles, err := collectSkillFiles(fetcher, result)
+		if err != nil {
+			return err
+		}
+
+		if err := installlib.Install(forgePath, skillFiles); err != nil {
+			progress.Fail("Vendoring failed")
+			return fmt.Errorf("vendoring failed: %w", err)
+		}
+
+		if err := ensureGitignore(root, "forge/"); err != nil {
+			cmd.PrintErrf("warning: could not update .gitignore: %v\n", err)
+		}
+
+		skillCount := countSkills(result)
+		msg := fmt.Sprintf("Updated and vendored %d skill(s) to forge/", skillCount)
+		progress.Done(msg)
+		if !progress.IsTTY() {
+			cmd.Println(msg)
+		}
 	}
 
 	// Print dependency tree to stderr

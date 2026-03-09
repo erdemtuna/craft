@@ -21,7 +21,7 @@ var outdatedCmd = &cobra.Command{
 }
 
 func runOutdated(cmd *cobra.Command, args []string) error {
-	m, pf, err := requireManifestAndPinfile()
+	m, pf, err := requireManifestAndPinfileForScope()
 	if err != nil {
 		return err
 	}

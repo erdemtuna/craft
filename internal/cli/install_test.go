@@ -586,6 +586,79 @@ func TestVerifyIntegrity_SkipsMissingPinEntry(t *testing.T) {
 	}
 }
 
+func TestEnsureGitignore(t *testing.T) {
+	t.Run("existing entry", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".gitignore")
+		original := ".craft/\nnode_modules/\n"
+		if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := ensureGitignore(dir, ".craft/"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, _ := os.ReadFile(path)
+		if string(got) != original {
+			t.Errorf("file should be unchanged, got %q", got)
+		}
+	})
+
+	t.Run("new entry", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".gitignore")
+		if err := os.WriteFile(path, []byte("node_modules/\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := ensureGitignore(dir, ".craft/"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, _ := os.ReadFile(path)
+		want := "node_modules/\n.craft/\n"
+		if string(got) != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		dir := t.TempDir()
+
+		if err := ensureGitignore(dir, ".craft/"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+		if err != nil {
+			t.Fatalf("file should have been created: %v", err)
+		}
+		want := ".craft/\n"
+		if string(got) != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("no trailing newline", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, ".gitignore")
+		if err := os.WriteFile(path, []byte("node_modules/"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := ensureGitignore(dir, ".craft/"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, _ := os.ReadFile(path)
+		want := "node_modules/\n.craft/\n"
+		if string(got) != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+}
+
 func TestVerifyIntegrity_BadDepURL(t *testing.T) {
 	skillFiles := map[string]map[string][]byte{
 		"github.com/org/repo/lint": {"SKILL.md": []byte("content")},

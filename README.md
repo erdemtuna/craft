@@ -14,19 +14,51 @@ But there's no official way to declare or manage these dependencies. Without pro
 
 craft fixes this. It's a package manager for Agent Skills — think Go modules, but for skills.
 
-## How It Works
+## Installation
 
-craft borrows directly from Go's dependency model:
+```bash
+go install github.com/erdemtuna/craft/cmd/craft@latest
+```
 
-| craft | Go | Purpose |
-|-------|-----|---------|
-| `craft.yaml` | `go.mod` | Declare what you export and what you depend on |
-| `craft.pin.yaml` | `go.sum` | Lock exact git commits + SHA-256 integrity digests |
-| `SKILL.md` | package doc | Skill metadata (name, description) |
+Or build from source:
 
-Dependencies are resolved using **Minimal Version Selection (MVS)**, fetched from git, and cached locally at `~/.craft/cache/`. Every resolved dependency is pinned to an exact commit SHA and verified with a SHA-256 integrity digest — no surprises.
+```bash
+git clone https://github.com/erdemtuna/craft.git
+cd craft
+go build -o craft ./cmd/craft
+```
 
-## Example
+## For Consumers: Install & Use Skills
+
+Found a skill package you want to use? One command:
+
+```bash
+$ craft get github.com/acme/company-standards@v2.1.0
+Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
+```
+
+That's it — skills are installed to your AI agent and tracked for updates. No project setup needed.
+
+```bash
+# Manage what you've installed
+$ craft list -g              # list globally installed skills
+$ craft update -g            # update to newer versions
+$ craft remove -g standards  # uninstall
+$ craft outdated -g          # check for updates
+```
+
+## For Developers: Create & Publish Skill Packages
+
+If you're building skill packages — defining dependencies, publishing for others to consume — craft gives you a full dependency management workflow.
+
+**Initialize a new package:**
+
+```bash
+# Auto-discovers SKILL.md files and walks you through setup
+$ craft init
+```
+
+### Example
 
 Say your organization has a set of API conventions — naming rules, error response formats, pagination patterns, auth standards. Today these live in a wiki page that nobody reads. You encode them into a `company-standards` skill package so every AI coding agent in the org follows the same rules:
 
@@ -63,9 +95,6 @@ Meanwhile, the docs team's `doc-generator` skill and the infra team's `api-desig
 **Set up and validate:**
 
 ```bash
-# Initialize a new package — auto-discovers SKILL.md files and walks you through setup
-$ craft init
-
 # Validate everything: schema, skill paths, frontmatter, dependency URLs, collision checks
 $ craft validate
 ✓ craft.yaml schema valid
@@ -74,11 +103,11 @@ $ craft validate
 ✓ Dependency URLs well-formed
 ✓ No skill name collisions
 
-# Resolve, pin, and install dependencies to your agent's skill directory
+# Resolve, pin, and vendor dependencies to forge/ (project-local)
 $ craft install
 ```
 
-After install, `craft.pin.yaml` locks every dependency to an exact state:
+After install, `craft.pin.yaml` locks every dependency to an exact state, and `forge/` contains the vendored skill files (gitignored, reproducible from the pinfile):
 
 ```yaml
 # craft.pin.yaml (generated — do not edit)
@@ -95,7 +124,7 @@ resolved:
 
 Commit this alongside `craft.yaml`. Anyone who runs `craft install` gets the exact same dependency tree.
 
-## Depending on Repos That Don't Use craft
+### Depending on Repos That Don't Use craft
 
 Not every skill repo has a `craft.yaml` — and that's fine. craft doesn't require upstream repos to adopt it.
 
@@ -111,35 +140,79 @@ dependencies:
 
 The only difference: repos without `craft.yaml` are treated as **leaf dependencies** — craft can't resolve transitive dependencies from them because there's no manifest declaring any. If `legacy-skills` itself depends on other packages, those won't be pulled in automatically. Once the upstream repo adds a `craft.yaml`, transitive resolution kicks in with no changes on your side.
 
-## Installation
+## How It Works
 
-```bash
-go install github.com/erdemtuna/craft/cmd/craft@latest
-```
+craft borrows directly from Go's dependency model:
 
-Or build from source:
+| craft | Go | Purpose |
+|-------|-----|---------|
+| `craft.yaml` | `go.mod` | Declare what you export and what you depend on |
+| `craft.pin.yaml` | `go.sum` | Lock exact git commits + SHA-256 integrity digests |
+| `SKILL.md` | package doc | Skill metadata (name, description) |
 
-```bash
-git clone https://github.com/erdemtuna/craft.git
-cd craft
-go build -o craft ./cmd/craft
-```
+Dependencies are resolved using **Minimal Version Selection (MVS)**, fetched from git, and cached locally at `~/.craft/cache/`. Every resolved dependency is pinned to an exact commit SHA and verified with a SHA-256 integrity digest — no surprises.
 
 ## Commands
+
+### Consumer Commands
+
+No project setup required — these operate on globally installed skills.
+
+| Command | Description |
+|---------|-------------|
+| `craft get [alias] <url> [url...]` | Install skills globally to your AI agent |
+| `craft list -g` | List globally installed skills |
+| `craft update -g [alias]` | Update globally installed skills |
+| `craft remove -g <alias>` | Remove a globally installed skill |
+| `craft outdated -g` | Check for global skill updates |
+| `craft validate -g` | Validate global manifest |
+| `craft tree -g` | Print global dependency tree |
+
+### Developer Commands
+
+Operate on the project manifest (`craft.yaml`) in the current directory.
 
 | Command | Description |
 |---------|-------------|
 | `craft init` | Interactive package setup with skill auto-discovery |
-| `craft install` | Resolve, pin, and install all dependencies |
-| `craft update [alias]` | Update dependencies (re-resolve branches, skip commit pins, bump tags) |
-| `craft add [alias] <url>` | Add a dependency (verify, then update manifest) |
-| `craft remove <alias>` | Remove a dependency and clean up orphaned skills |
-| `craft list` | List resolved dependencies with versions and skill counts |
-| `craft tree` | Print the dependency tree |
-| `craft outdated` | Show available dependency updates |
+| `craft add [alias] <url>` | Add a dependency to `craft.yaml` |
+| `craft install` | Resolve, pin, and vendor dependencies to `forge/` |
+| `craft update [alias]` | Update project dependencies (re-resolve branches, skip commit pins, bump tags) |
+| `craft remove <alias>` | Remove a dependency and clean up orphaned skills from `forge/` |
+| `craft list` | List project dependencies with versions and skill counts |
+| `craft tree` | Print project dependency tree |
+| `craft outdated` | Show available project dependency updates |
 | `craft validate` | Run all validation checks (schema, paths, frontmatter, deps, collisions, non-tagged warnings) |
+
+### Shared Commands
+
+| Command | Description |
+|---------|-------------|
 | `craft cache clean` | Remove all cached repositories from `~/.craft/cache/` |
 | `craft version` | Print version and exit |
+
+All management commands support `--global` / `-g` to operate on globally installed skills instead of the project manifest.
+
+### `craft get`
+
+Install skills from any repository directly into your AI agent's skill directory. No `craft init` or project setup required.
+
+```bash
+# Install a skill package
+$ craft get github.com/acme/company-standards@v2.1.0
+Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
+
+# Install with a custom alias
+$ craft get standards github.com/acme/company-standards@v2.1.0
+
+# Install multiple packages at once
+$ craft get github.com/acme/standards@v2.1.0 github.com/acme/utils@v1.0.0
+
+# Preview what would be installed
+$ craft get --dry-run github.com/acme/standards@v2.1.0
+```
+
+Global state is tracked at `~/.craft/craft.yaml` and `~/.craft/craft.pin.yaml` — auto-created on first use.
 
 ### `craft add`
 
@@ -155,7 +228,7 @@ Added "utility-skills" → github.com/acme/utility-skills@v1.0.0
 # Add with custom alias
 $ craft add utils github.com/acme/utility-skills@v1.0.0
 
-# Add and immediately install
+# Add and immediately vendor to forge/
 $ craft add --install github.com/acme/utility-skills@v1.0.0
 
 # Add a dependency from a branch (for repos without tags)
@@ -247,13 +320,14 @@ $ echo $?
 | Flag | Description |
 |------|-------------|
 | `--verbose`, `-v` | Enable verbose diagnostic output (shows fetches, version comparisons, cache operations) |
+| `--global`, `-g` | Operate on globally installed skills (`~/.craft/`) instead of the project manifest |
 
 ### Operation Flags
 
 | Flag | Available On | Description |
 |------|-------------|-------------|
-| `--dry-run` | `install`, `update` | Show what would happen without making any changes |
-| `--target <path>` | `install`, `update`, `add`, `remove` | Override agent auto-detection with a custom install path |
+| `--dry-run` | `install`, `update`, `get` | Show what would happen without making any changes |
+| `--target <path>` | `get`, `install -g`, `update -g`, `remove` | Override agent auto-detection with a custom install path. Rejected on project-scope `install` and `update` (skills vendor to `forge/`). |
 
 ## Manifest Reference (`craft.yaml`)
 
@@ -287,11 +361,10 @@ craft auto-detects your AI agent and installs skills to the correct directory:
 | Claude Code | `~/.claude/` | `~/.claude/skills/` |
 | GitHub Copilot | `~/.copilot/` | `~/.copilot/skills/` |
 
-When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection:
+When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection.
 
-```bash
-$ craft install --target ./my-skills
-```
+**Global installs** (`craft get`, `craft install -g`) write to agent skill directories.  
+**Project installs** (`craft install`) vendor to `forge/` in the project root (gitignored).
 
 ## Known Limitations
 
