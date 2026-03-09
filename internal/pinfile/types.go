@@ -17,6 +17,10 @@ type ResolvedEntry struct {
 	// Commit is the full git commit SHA the dependency resolved to.
 	Commit string `yaml:"commit"`
 
+	// RefType indicates the kind of reference: "tag", "commit", or "branch".
+	// Empty or absent defaults to "tag" for backward compatibility.
+	RefType string `yaml:"ref_type,omitempty"`
+
 	// Integrity is the SHA-256 integrity digest of the dependency content.
 	Integrity string `yaml:"integrity"`
 

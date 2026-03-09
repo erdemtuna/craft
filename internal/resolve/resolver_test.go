@@ -399,3 +399,188 @@ func TestResolveMVSTransitiveDepsReCollection(t *testing.T) {
 		}
 	}
 }
+
+func setupBranchDep(mock *fetch.MockFetcher, identity, branch, commitSHA string, skillMD string) {
+	cloneURL := "https://" + identity + ".git"
+	mock.Refs[cloneURL+":"+branch] = commitSHA
+	mock.Trees[cloneURL+":"+commitSHA] = []string{"skills/s1/SKILL.md"}
+	mock.Files[cloneURL+":"+commitSHA+":skills/s1/SKILL.md"] = []byte(skillMD)
+}
+
+func setupCommitDep(mock *fetch.MockFetcher, identity, commitSHA string, skillMD string) {
+	cloneURL := "https://" + identity + ".git"
+	mock.Refs[cloneURL+":"+commitSHA] = commitSHA
+	mock.Trees[cloneURL+":"+commitSHA] = []string{"skills/s1/SKILL.md"}
+	mock.Files[cloneURL+":"+commitSHA+":skills/s1/SKILL.md"] = []byte(skillMD)
+}
+
+func TestResolveBranchDep(t *testing.T) {
+	mock := newTestFetcher()
+	setupBranchDep(mock, "github.com/acme/tools", "main", "branchcommit123", "---\nname: tool-skill\n---\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name:         "test",
+		Dependencies: map[string]string{"tools": "github.com/acme/tools@branch:main"},
+	}
+
+	result, err := resolver.Resolve(m, ResolveOptions{})
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+	if len(result.Resolved) != 1 {
+		t.Fatalf("Expected 1 resolved, got %d", len(result.Resolved))
+	}
+	dep := result.Resolved[0]
+	if dep.Commit != "branchcommit123" {
+		t.Errorf("Commit = %q, want branchcommit123", dep.Commit)
+	}
+	if dep.RefType != RefTypeBranch {
+		t.Errorf("RefType = %q, want %q", dep.RefType, RefTypeBranch)
+	}
+	if len(dep.Skills) != 1 || dep.Skills[0] != "tool-skill" {
+		t.Errorf("Skills = %v, want [tool-skill]", dep.Skills)
+	}
+
+	// Check pinfile has ref_type
+	entry, ok := result.Pinfile.Resolved["github.com/acme/tools@branch:main"]
+	if !ok {
+		t.Fatal("Pinfile missing entry for branch dep")
+	}
+	if entry.RefType != "branch" {
+		t.Errorf("Pinfile RefType = %q, want %q", entry.RefType, "branch")
+	}
+}
+
+func TestResolveCommitDep(t *testing.T) {
+	mock := newTestFetcher()
+	setupCommitDep(mock, "github.com/acme/tools", "abc1234def567890abc1234def567890abc1234d", "---\nname: tool-skill\n---\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name:         "test",
+		Dependencies: map[string]string{"tools": "github.com/acme/tools@abc1234def567890abc1234def567890abc1234d"},
+	}
+
+	result, err := resolver.Resolve(m, ResolveOptions{})
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+	if len(result.Resolved) != 1 {
+		t.Fatalf("Expected 1 resolved, got %d", len(result.Resolved))
+	}
+	dep := result.Resolved[0]
+	if dep.Commit != "abc1234def567890abc1234def567890abc1234d" {
+		t.Errorf("Commit = %q, want abc1234def567890abc1234def567890abc1234d", dep.Commit)
+	}
+	if dep.RefType != RefTypeCommit {
+		t.Errorf("RefType = %q, want %q", dep.RefType, RefTypeCommit)
+	}
+
+	// Check pinfile has ref_type
+	entry, ok := result.Pinfile.Resolved["github.com/acme/tools@abc1234def567890abc1234def567890abc1234d"]
+	if !ok {
+		t.Fatal("Pinfile missing entry for commit dep")
+	}
+	if entry.RefType != "commit" {
+		t.Errorf("Pinfile RefType = %q, want %q", entry.RefType, "commit")
+	}
+}
+
+func TestResolveMixedRefTypeConflict(t *testing.T) {
+	mock := newTestFetcher()
+	setupDep(mock, "github.com/acme/tools", "1.0.0", "tagcommit", "---\nname: tag-skill\n---\n")
+	setupBranchDep(mock, "github.com/acme/tools", "main", "branchcommit", "---\nname: branch-skill\n---\n")
+
+	// Direct dep is tagged, transitive from B requires branch
+	bClone := "https://github.com/org/b.git"
+	mock.Refs[bClone+":v1.0.0"] = "bbb"
+	mock.Trees[bClone+":bbb"] = []string{"skills/b-skill/SKILL.md"}
+	mock.Files[bClone+":bbb:skills/b-skill/SKILL.md"] = []byte("---\nname: b-skill\n---\n")
+	mock.Files[bClone+":bbb:craft.yaml"] = []byte("schema_version: 1\nname: b\nversion: 1.0.0\nskills:\n  - ./skills/b-skill\ndependencies:\n  tools: github.com/acme/tools@branch:main\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name: "test",
+		Dependencies: map[string]string{
+			"tools": "github.com/acme/tools@v1.0.0",
+			"b":     "github.com/org/b@v1.0.0",
+		},
+	}
+
+	_, err := resolver.Resolve(m, ResolveOptions{})
+	if err == nil {
+		t.Fatal("Expected conflict error for mixed ref types, got nil")
+	}
+	if !strings.Contains(err.Error(), "conflicting ref types") {
+		t.Errorf("Error = %q, want conflict message", err.Error())
+	}
+}
+
+func TestResolveSameBranchMerge(t *testing.T) {
+	mock := newTestFetcher()
+	setupBranchDep(mock, "github.com/acme/tools", "main", "branchcommit123", "---\nname: tool-skill\n---\n")
+
+	// Both B and root require tools@branch:main — should succeed
+	bClone := "https://github.com/org/b.git"
+	mock.Refs[bClone+":v1.0.0"] = "bbb"
+	mock.Trees[bClone+":bbb"] = []string{"skills/b-skill/SKILL.md"}
+	mock.Files[bClone+":bbb:skills/b-skill/SKILL.md"] = []byte("---\nname: b-skill\n---\n")
+	mock.Files[bClone+":bbb:craft.yaml"] = []byte("schema_version: 1\nname: b\nversion: 1.0.0\nskills:\n  - ./skills/b-skill\ndependencies:\n  tools: github.com/acme/tools@branch:main\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name: "test",
+		Dependencies: map[string]string{
+			"tools": "github.com/acme/tools@branch:main",
+			"b":     "github.com/org/b@v1.0.0",
+		},
+	}
+
+	result, err := resolver.Resolve(m, ResolveOptions{})
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+	// Should have 3 deps: tools (branch), b (tag), and they should coexist
+	if len(result.Resolved) != 2 {
+		t.Fatalf("Expected 2 resolved, got %d", len(result.Resolved))
+	}
+}
+
+func TestResolveDifferentBranchConflict(t *testing.T) {
+	mock := newTestFetcher()
+	setupBranchDep(mock, "github.com/acme/tools", "main", "maincommit", "---\nname: tool-skill\n---\n")
+	// Also set up develop branch
+	toolsClone := "https://github.com/acme/tools.git"
+	mock.Refs[toolsClone+":develop"] = "devcommit"
+	mock.Trees[toolsClone+":devcommit"] = []string{"skills/s1/SKILL.md"}
+	mock.Files[toolsClone+":devcommit:skills/s1/SKILL.md"] = []byte("---\nname: tool-skill\n---\n")
+
+	bClone := "https://github.com/org/b.git"
+	mock.Refs[bClone+":v1.0.0"] = "bbb"
+	mock.Trees[bClone+":bbb"] = []string{"skills/b-skill/SKILL.md"}
+	mock.Files[bClone+":bbb:skills/b-skill/SKILL.md"] = []byte("---\nname: b-skill\n---\n")
+	mock.Files[bClone+":bbb:craft.yaml"] = []byte("schema_version: 1\nname: b\nversion: 1.0.0\nskills:\n  - ./skills/b-skill\ndependencies:\n  tools: github.com/acme/tools@branch:develop\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name: "test",
+		Dependencies: map[string]string{
+			"tools": "github.com/acme/tools@branch:main",
+			"b":     "github.com/org/b@v1.0.0",
+		},
+	}
+
+	_, err := resolver.Resolve(m, ResolveOptions{})
+	if err == nil {
+		t.Fatal("Expected conflict error for different branches, got nil")
+	}
+	if !strings.Contains(err.Error(), "conflicting branch names") {
+		t.Errorf("Error = %q, want branch conflict message", err.Error())
+	}
+}
+
+// Ensure unused imports don't cause issues
+var _ = fmt.Sprint
+var _ = semver.Compare
+var _ = pinfile.Pinfile{}

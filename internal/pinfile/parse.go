@@ -20,6 +20,15 @@ func Parse(r io.Reader) (*Pinfile, error) {
 		return nil, fmt.Errorf("parsing pinfile YAML: %w", err)
 	}
 
+	// Default empty RefType to "tag" for backward compatibility with
+	// pinfiles created before non-tagged dependency support.
+	for url, entry := range p.Resolved {
+		if entry.RefType == "" {
+			entry.RefType = "tag"
+			p.Resolved[url] = entry
+		}
+	}
+
 	return &p, nil
 }
 
