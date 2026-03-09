@@ -102,7 +102,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			newURL := parsed.WithVersion(latest)
 			m.Dependencies[alias] = newURL
 			updated = true
-			cmd.Printf("  %s: %s → %s\n", alias, parsed.GitTag(), latest)
+			cmd.Printf("  %s: %s → %s\n", alias, parsed.GitRef(), latest)
 		}
 	}
 

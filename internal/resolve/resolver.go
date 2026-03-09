@@ -126,7 +126,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 			}
 
 			cloneURL := fetch.NormalizeCloneURL(identity)
-			commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+			commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 			if err != nil {
 				return nil, fmt.Errorf("resolving %s: %w", dep.URL, err)
 			}
@@ -244,7 +244,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 
 		cloneURL := fetch.NormalizeCloneURL(identity)
 
-		commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+		commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 		if err != nil {
 			return nil, fmt.Errorf("resolving %s: %w", depURL, err)
 		}
@@ -294,7 +294,7 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 
 	cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
 
-	commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitTag())
+	commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 	if err != nil {
 		return dep, fmt.Errorf("resolving %s: %w", dep.URL, err)
 	}

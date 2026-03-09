@@ -129,7 +129,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if len(addedSkills) > 0 {
 		cmd.Printf("  skills: %s\n", strings.Join(addedSkills, ", "))
 	}
-	cmd.Printf("  version: %s\n", parsed.GitTag())
+	cmd.Printf("  version: %s\n", parsed.GitRef())
 
 	// Optionally run install
 	if addInstall {
