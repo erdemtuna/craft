@@ -29,6 +29,7 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(treeCmd)
 	rootCmd.AddCommand(outdatedCmd)
+	rootCmd.AddCommand(getCmd)
 }
 
 // Execute runs the root command.
