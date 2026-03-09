@@ -344,4 +344,3 @@ func newFetcher() (fetch.GitFetcher, error) {
 	}
 	return fetch.NewGoGitFetcher(cache), nil
 }
-
