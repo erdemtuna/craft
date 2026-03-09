@@ -155,10 +155,10 @@ func TestResolveCycleDetection(t *testing.T) {
 	}
 }
 
-func TestResolveCollision(t *testing.T) {
+func TestResolveSameNameSkillsAllowed(t *testing.T) {
 	mock := newTestFetcher()
 
-	// Two deps export the same skill name
+	// Two deps export the same skill name — should succeed with namespacing
 	setupDep(mock, "github.com/org/a", "1.0.0", "aaa", "---\nname: shared-skill\n---\n")
 	setupDep(mock, "github.com/org/b", "1.0.0", "bbb", "---\nname: shared-skill\n---\n")
 
@@ -171,15 +171,12 @@ func TestResolveCollision(t *testing.T) {
 		},
 	}
 
-	_, err := resolver.Resolve(m, ResolveOptions{})
-	if err == nil {
-		t.Fatal("Expected collision error")
+	result, err := resolver.Resolve(m, ResolveOptions{})
+	if err != nil {
+		t.Fatalf("Resolve should succeed with same-name skills from different deps, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "collision") {
-		t.Errorf("Error should mention collision, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "shared-skill") {
-		t.Errorf("Error should mention skill name, got: %v", err)
+	if len(result.Resolved) != 2 {
+		t.Errorf("Expected 2 resolved deps, got %d", len(result.Resolved))
 	}
 }
 

@@ -175,3 +175,36 @@ func TestInstallAtomicOverwrite(t *testing.T) {
 		t.Fatalf("skill dir should exist: %v", err)
 	}
 }
+
+func TestInstallCompositeKeys(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "skills")
+	skills := map[string]map[string][]byte{
+		"github.com/org/repo/my-skill": {
+			"SKILL.md": []byte("---\nname: my-skill\n---\n"),
+		},
+		"github.com/other/tools/my-skill": {
+			"SKILL.md": []byte("---\nname: my-skill\n---\nfrom other"),
+		},
+	}
+
+	if err := Install(target, skills); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+
+	// Both skills should exist at different paths
+	content1, err := os.ReadFile(filepath.Join(target, "github.com", "org", "repo", "my-skill", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("ReadFile error for org/repo: %v", err)
+	}
+	if !strings.Contains(string(content1), "name: my-skill") {
+		t.Errorf("Unexpected content for org/repo: %q", content1)
+	}
+
+	content2, err := os.ReadFile(filepath.Join(target, "github.com", "other", "tools", "my-skill", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("ReadFile error for other/tools: %v", err)
+	}
+	if !strings.Contains(string(content2), "from other") {
+		t.Errorf("Unexpected content for other/tools: %q", content2)
+	}
+}

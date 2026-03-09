@@ -237,12 +237,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 		return resolved[i].URL < resolved[j].URL
 	})
 
-	// Phase 5: Skill name collision detection
-	if err := detectCollisions(resolved); err != nil {
-		return nil, err
-	}
-
-	// Phase 6: Build pinfile
+	// Phase 5: Build pinfile
 	pf := &pinfile.Pinfile{
 		PinVersion: 1,
 		Resolved:   make(map[string]pinfile.ResolvedEntry),
@@ -503,34 +498,6 @@ func (r *Resolver) autoDiscoverSkills(cloneURL, commitSHA string) ([]string, []s
 	}
 
 	return names, dirs, allFiles, nil
-}
-
-// detectCollisions checks for duplicate skill names across resolved deps.
-func detectCollisions(resolved []ResolvedDep) error {
-	type skillSource struct {
-		depURL string
-		commit string
-	}
-
-	seen := make(map[string]skillSource)
-	for _, dep := range resolved {
-		for _, name := range dep.Skills {
-			if existing, ok := seen[name]; ok {
-				existShort := existing.commit
-				if len(existShort) > 8 {
-					existShort = existShort[:8]
-				}
-				depShort := dep.Commit
-				if len(depShort) > 8 {
-					depShort = depShort[:8]
-				}
-				return fmt.Errorf("skill name collision: %q is exported by both %s (commit %s) and %s (commit %s)",
-					name, existing.depURL, existShort, dep.URL, depShort)
-			}
-			seen[name] = skillSource{depURL: dep.URL, commit: dep.Commit}
-		}
-	}
-	return nil
 }
 
 // CollectSkillDirFiles filters allPaths by skillDir, excludes infra files for

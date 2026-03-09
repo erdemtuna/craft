@@ -44,9 +44,9 @@ func TestCollectSkillFiles_SingleDep(t *testing.T) {
 		t.Fatalf("expected 1 skill, got %d", len(skills))
 	}
 
-	lintFiles, ok := skills["lint"]
+	lintFiles, ok := skills["github.com/org/repo/lint"]
 	if !ok {
-		t.Fatal("expected skill 'lint' in result")
+		t.Fatal("expected skill 'github.com/org/repo/lint' in result")
 	}
 
 	if len(lintFiles) != 2 {
@@ -106,7 +106,7 @@ func TestCollectSkillFiles_MultipleDeps(t *testing.T) {
 		t.Fatalf("expected 3 skills, got %d", len(skills))
 	}
 
-	for _, name := range []string{"lint", "format", "debug"} {
+	for _, name := range []string{"github.com/org/skills/lint", "github.com/org/skills/format", "github.com/org/tools/debug"} {
 		if _, ok := skills[name]; !ok {
 			t.Errorf("expected skill %q in result", name)
 		}
@@ -141,7 +141,7 @@ func TestCollectSkillFiles_EmptySkillPath(t *testing.T) {
 		t.Fatalf("collectSkillFiles returned error: %v", err)
 	}
 
-	files := skills["single-skill"]
+	files := skills["github.com/org/single-skill/single-skill"]
 	if len(files) != 2 {
 		t.Fatalf("expected 2 files, got %d", len(files))
 	}
@@ -196,7 +196,7 @@ func TestCollectSkillFiles_SkipsListTreeFailure(t *testing.T) {
 	}
 
 	// Skill entry may exist but with no files
-	if files, ok := skills["missing-tree"]; ok && len(files) > 0 {
+	if files, ok := skills["github.com/org/repo/missing-tree"]; ok && len(files) > 0 {
 		t.Errorf("expected empty files for missing tree, got %d files", len(files))
 	}
 }
@@ -226,7 +226,7 @@ func TestCollectSkillFiles_SkipsReadFilesFailure(t *testing.T) {
 	}
 
 	// Skill exists but files map should be empty (file key not in mock)
-	if files, ok := skills["broken"]; ok && len(files) > 0 {
+	if files, ok := skills["github.com/org/repo/broken"]; ok && len(files) > 0 {
 		t.Errorf("expected empty files for unreadable skill, got %d", len(files))
 	}
 }
@@ -243,6 +243,90 @@ func TestCollectSkillFiles_NoResolvedDeps(t *testing.T) {
 	}
 	if len(skills) != 0 {
 		t.Errorf("expected 0 skills, got %d", len(skills))
+	}
+}
+
+func TestCollectSkillFiles_SameNameDifferentDeps(t *testing.T) {
+	mock := fetch.NewMockFetcher()
+
+	// Two deps both export "skill-creator"
+	url1 := "https://github.com/lossyrob/paw.git"
+	mock.Trees[url1+":commit1"] = []string{"skills/skill-creator/SKILL.md"}
+	mock.Files[url1+":commit1:skills/skill-creator/SKILL.md"] = []byte("paw version")
+
+	url2 := "https://github.com/anthropics/skills.git"
+	mock.Trees[url2+":commit2"] = []string{"skills/skill-creator/SKILL.md"}
+	mock.Files[url2+":commit2:skills/skill-creator/SKILL.md"] = []byte("anthropic version")
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "github.com/lossyrob/paw@v1.0.0",
+				Commit:     "commit1",
+				Skills:     []string{"skill-creator"},
+				SkillPaths: []string{"skills/skill-creator"},
+			},
+			{
+				URL:        "github.com/anthropics/skills@v1.0.0",
+				Commit:     "commit2",
+				Skills:     []string{"skill-creator"},
+				SkillPaths: []string{"skills/skill-creator"},
+			},
+		},
+	}
+
+	skills, err := collectSkillFiles(mock, result)
+	if err != nil {
+		t.Fatalf("collectSkillFiles returned error: %v", err)
+	}
+
+	// Both should exist under namespaced keys
+	if len(skills) != 2 {
+		t.Fatalf("expected 2 skills, got %d", len(skills))
+	}
+
+	pawFiles, ok := skills["github.com/lossyrob/paw/skill-creator"]
+	if !ok {
+		t.Fatal("expected 'github.com/lossyrob/paw/skill-creator' in result")
+	}
+	if string(pawFiles["SKILL.md"]) != "paw version" {
+		t.Errorf("unexpected PAW content: %q", pawFiles["SKILL.md"])
+	}
+
+	antFiles, ok := skills["github.com/anthropics/skills/skill-creator"]
+	if !ok {
+		t.Fatal("expected 'github.com/anthropics/skills/skill-creator' in result")
+	}
+	if string(antFiles["SKILL.md"]) != "anthropic version" {
+		t.Errorf("unexpected Anthropic content: %q", antFiles["SKILL.md"])
+	}
+}
+
+func TestCollectSkillFiles_NonGitHubHost(t *testing.T) {
+	mock := fetch.NewMockFetcher()
+
+	url := "https://gitlab.example.io/my-org/internal-skills.git"
+	mock.Trees[url+":commit1"] = []string{"skills/deploy/SKILL.md"}
+	mock.Files[url+":commit1:skills/deploy/SKILL.md"] = []byte("deploy skill")
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "gitlab.example.io/my-org/internal-skills@v1.0.0",
+				Commit:     "commit1",
+				Skills:     []string{"deploy"},
+				SkillPaths: []string{"skills/deploy"},
+			},
+		},
+	}
+
+	skills, err := collectSkillFiles(mock, result)
+	if err != nil {
+		t.Fatalf("collectSkillFiles returned error: %v", err)
+	}
+
+	if _, ok := skills["gitlab.example.io/my-org/internal-skills/deploy"]; !ok {
+		t.Fatal("expected non-GitHub host namespace key 'gitlab.example.io/my-org/internal-skills/deploy'")
 	}
 }
 
@@ -271,9 +355,15 @@ func TestCollectSkillFiles_SkillPathsShorterThanSkills(t *testing.T) {
 		t.Fatalf("collectSkillFiles returned error: %v", err)
 	}
 
-	// Both skills should be present
+	// Both skills should be present with composite keys
 	if len(skills) != 2 {
 		t.Errorf("expected 2 skills, got %d", len(skills))
+	}
+	if _, ok := skills["github.com/org/repo/skill1"]; !ok {
+		t.Error("expected composite key 'github.com/org/repo/skill1'")
+	}
+	if _, ok := skills["github.com/org/repo/skill2"]; !ok {
+		t.Error("expected composite key 'github.com/org/repo/skill2'")
 	}
 }
 
@@ -389,9 +479,9 @@ func TestResolveInstallTargets_ExplicitPath(t *testing.T) {
 }
 
 func TestVerifyIntegrity_Pass(t *testing.T) {
-	// Build skill files matching what the resolver would produce
+	// Build skill files matching what collectSkillFiles would produce (composite keys)
 	skillFiles := map[string]map[string][]byte{
-		"lint": {
+		"github.com/org/repo/lint": {
 			"SKILL.md":   []byte("---\nname: lint\n---\n"),
 			"rules.yaml": []byte("rules: []"),
 		},
@@ -433,7 +523,7 @@ func TestVerifyIntegrity_Pass(t *testing.T) {
 func TestVerifyIntegrity_Mismatch(t *testing.T) {
 	// Skill files that don't match the pinfile digest (simulating cache poisoning)
 	skillFiles := map[string]map[string][]byte{
-		"lint": {
+		"github.com/org/repo/lint": {
 			"SKILL.md": []byte("TAMPERED CONTENT"),
 		},
 	}
@@ -473,7 +563,7 @@ func TestVerifyIntegrity_Mismatch(t *testing.T) {
 
 func TestVerifyIntegrity_SkipsMissingPinEntry(t *testing.T) {
 	skillFiles := map[string]map[string][]byte{
-		"lint": {"SKILL.md": []byte("content")},
+		"github.com/org/repo/lint": {"SKILL.md": []byte("content")},
 	}
 
 	result := &resolve.ResolveResult{
@@ -493,5 +583,35 @@ func TestVerifyIntegrity_SkipsMissingPinEntry(t *testing.T) {
 
 	if err := verifyIntegrity(result, skillFiles); err != nil {
 		t.Fatalf("verifyIntegrity should skip deps without pinfile entry, got: %v", err)
+	}
+}
+
+func TestVerifyIntegrity_BadDepURL(t *testing.T) {
+	skillFiles := map[string]map[string][]byte{
+		"github.com/org/repo/lint": {"SKILL.md": []byte("content")},
+	}
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:    "not-a-valid-url",
+				Commit: "abc123",
+				Skills: []string{"lint"},
+			},
+		},
+		Pinfile: &pinfile.Pinfile{
+			PinVersion: 1,
+			Resolved: map[string]pinfile.ResolvedEntry{
+				"not-a-valid-url": {Integrity: "sha256:abc"},
+			},
+		},
+	}
+
+	err := verifyIntegrity(result, skillFiles)
+	if err == nil {
+		t.Fatal("expected error for invalid dep URL")
+	}
+	if !strings.Contains(err.Error(), "verifying integrity for") {
+		t.Errorf("error should mention context, got: %v", err)
 	}
 }
