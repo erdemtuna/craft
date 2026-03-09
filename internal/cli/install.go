@@ -140,6 +140,10 @@ func runInstallGlobal(cmd *cobra.Command) error {
 }
 
 func runInstallProject(cmd *cobra.Command) error {
+	if installTarget != "" {
+		return fmt.Errorf("--target is not supported for project installs (skills vendor to forge/)\n  hint: use `craft install -g --target %s` for global install to a custom path", installTarget)
+	}
+
 	root, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)

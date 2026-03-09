@@ -31,7 +31,7 @@ func init() {
 func runRemove(cmd *cobra.Command, args []string) error {
 	alias := args[0]
 
-	var manifestPath, pfPath string
+	var manifestPath, pfPath, root string
 	var err error
 
 	if globalFlag {
@@ -44,7 +44,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		root, err := os.Getwd()
+		root, err = os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
 		}
@@ -117,10 +117,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				targetPath = []string{removeTarget}
 			} else {
 				// Project: clean from forge/ directory
-				root, err := os.Getwd()
-				if err == nil {
-					targetPath = []string{filepath.Join(root, "forge")}
-				}
+				targetPath = []string{filepath.Join(root, "forge")}
 			}
 			if err != nil {
 				// If we can't determine target, just report what was orphaned

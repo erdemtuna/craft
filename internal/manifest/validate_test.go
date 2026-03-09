@@ -173,6 +173,72 @@ func TestValidateGlobal_EmptySkills(t *testing.T) {
 	}
 }
 
+func TestValidateGlobal_InvalidSchemaVersion(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 2,
+		Name:          "test",
+		Skills:        []string{},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) != 1 {
+		t.Fatalf("Expected 1 error, got %d: %v", len(errs), errs)
+	}
+	assertContains(t, errs[0].Error(), "schema_version")
+}
+
+func TestValidateGlobal_InvalidName(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "INVALID",
+		Skills:        []string{},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) != 1 {
+		t.Fatalf("Expected 1 error, got %d: %v", len(errs), errs)
+	}
+	assertContains(t, errs[0].Error(), "name")
+}
+
+func TestValidateGlobal_InvalidDepURL(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "test",
+		Skills:        []string{},
+		Dependencies:  map[string]string{"bad": "not-a-valid-url"},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) != 1 {
+		t.Fatalf("Expected 1 error, got %d: %v", len(errs), errs)
+	}
+	assertContains(t, errs[0].Error(), "dependencies")
+}
+
+func TestValidateGlobal_MultipleErrors(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 2,
+		Name:          "",
+		Skills:        []string{},
+		Dependencies:  map[string]string{"bad": "not-a-valid-url"},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) < 2 {
+		t.Errorf("Expected at least 2 errors, got %d: %v", len(errs), errs)
+	}
+}
+
+func TestValidateGlobal_ValidWithDeps(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "global",
+		Skills:        []string{},
+		Dependencies:  map[string]string{"dep": "github.com/org/repo@v1.0.0"},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) != 0 {
+		t.Errorf("Expected no errors, got %v", errs)
+	}
+}
+
 func assertContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

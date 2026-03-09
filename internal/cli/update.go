@@ -238,6 +238,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Project: vendor to forge/
+		if updateTarget != "" {
+			return fmt.Errorf("--target is not supported for project updates (skills vendor to forge/)\n  hint: use `craft update -g --target %s` for global update to a custom path", updateTarget)
+		}
 		forgePath := filepath.Join(root, "forge")
 
 		skillFiles, err := collectSkillFiles(fetcher, result)

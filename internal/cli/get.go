@@ -64,6 +64,9 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if len(args) != 2 {
 			return fmt.Errorf("when providing an alias, exactly one URL must follow\n  usage: craft get [alias] <url>")
 		}
+		if err := manifest.ValidateName(args[0]); err != nil {
+			return fmt.Errorf("invalid alias %q: %w\n  hint: aliases must be lowercase alphanumeric with hyphens (e.g. 'my-skills')", args[0], err)
+		}
 		parsed, err := resolve.ParseDepURL(args[1])
 		if err != nil {
 			return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
@@ -150,6 +153,16 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Check for alias collisions among parsed deps
+	seen := make(map[string]string) // alias → url
+	for _, dep := range activeDeps {
+		if existing, ok := seen[dep.alias]; ok {
+			return fmt.Errorf("alias collision: %q resolves to both %s and %s\n  hint: use 'craft get <alias> <url>' to provide distinct aliases",
+				dep.alias, existing, dep.url)
+		}
+		seen[dep.alias] = dep.url
+	}
+
 	// Add all deps to manifest
 	for _, dep := range activeDeps {
 		m.Dependencies[dep.alias] = dep.url
@@ -194,7 +207,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Write global manifest and pinfile
+	// Write manifest and pinfile before install (write-ahead).
+	// If install fails, the dep is tracked but not installed — recoverable via `craft install -g`.
 	if err := writeManifestAtomic(manifestPath, m); err != nil {
 		return err
 	}
@@ -205,20 +219,20 @@ func runGet(cmd *cobra.Command, args []string) error {
 	// Resolve agent install targets
 	targetPaths, err := resolveInstallTargets(getTarget)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 	}
 
 	// Collect skill files
 	skillFiles, err := collectSkillFiles(fetcher, result)
 	if err != nil {
 		progress.Fail("Fetching failed")
-		return err
+		return fmt.Errorf("%w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 	}
 
 	// Verify integrity
 	if err := verifyIntegrity(result, skillFiles); err != nil {
 		progress.Fail("Integrity check failed")
-		return err
+		return fmt.Errorf("%w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 	}
 
 	// Install to agent directories
@@ -226,7 +240,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 	for _, targetPath := range targetPaths {
 		if err := installlib.Install(targetPath, skillFiles); err != nil {
 			progress.Fail("Installation failed")
-			return fmt.Errorf("installation failed: %w", err)
+			return fmt.Errorf("installation failed: %w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 		}
 	}
 
