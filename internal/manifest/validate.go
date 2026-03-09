@@ -16,7 +16,7 @@ var semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*
 
 // depURLPattern matches dependency URL format: host/org/repo@<ref>
 // where ref is one of: vMAJOR.MINOR.PATCH (tag), hex≥7 (commit SHA), or branch:<name>.
-var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@(v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)|[0-9a-fA-F]{7,}|branch:.+)$`)
+var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@(v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)|[0-9a-fA-F]{7,64}|branch:.+)$`)
 
 // Validate checks a parsed Manifest against all schema rules.
 // Returns a slice of all validation errors found (does not stop at first error).

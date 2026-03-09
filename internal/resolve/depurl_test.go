@@ -210,6 +210,11 @@ func TestParseDepURL(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "SHA too long (65 chars)",
+			input:   "github.com/org/repo@abc1234def5678901234567890123456789012345678901234567890abcdef123",
+			wantErr: true,
+		},
+		{
 			name:    "empty branch name",
 			input:   "github.com/org/repo@branch:",
 			wantErr: true,

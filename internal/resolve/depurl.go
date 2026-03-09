@@ -33,6 +33,9 @@ var hexPattern = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 // minCommitSHALength is the minimum length for a commit SHA ref.
 const minCommitSHALength = 7
 
+// maxCommitSHALength is the maximum length for a commit SHA ref (SHA-256).
+const maxCommitSHALength = 64
+
 // DepURL represents a parsed dependency URL from craft.yaml.
 type DepURL struct {
 	// Raw is the original URL string (e.g., "github.com/example/skills@v1.0.0").
@@ -101,7 +104,7 @@ func ParseDepURL(raw string) (*DepURL, error) {
 	} else if m := semverRefPattern.FindStringSubmatch(ref); m != nil {
 		d.Version = m[1]
 		d.RefType = RefTypeTag
-	} else if hexPattern.MatchString(ref) && len(ref) >= minCommitSHALength {
+	} else if hexPattern.MatchString(ref) && len(ref) >= minCommitSHALength && len(ref) <= maxCommitSHALength {
 		d.Ref = ref
 		d.RefType = RefTypeCommit
 	} else {
