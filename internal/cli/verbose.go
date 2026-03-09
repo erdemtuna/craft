@@ -14,7 +14,7 @@ var verbose bool
 // verboseLog writes a message to stderr when verbose mode is enabled.
 func verboseLog(cmd *cobra.Command, format string, args ...any) {
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
 	}
 }
 
