@@ -363,8 +363,19 @@ craft auto-detects your AI agent and installs skills to the correct directory:
 
 When both agents are detected, craft prompts you to choose. Use `--target <path>` to override auto-detection.
 
-**Global installs** (`craft get`, `craft install -g`) write to agent skill directories.  
-**Project installs** (`craft install`) vendor to `forge/` in the project root (gitignored).
+**Global installs** (`craft get`, `craft install -g`) write to agent skill directories using a flat naming scheme so agents can discover skills. Each skill becomes a direct child of the skills root:
+
+```
+~/.claude/skills/
+├── github-com--acme--company-standards--coding-style/
+│   └── SKILL.md
+└── github-com--acme--company-standards--review-checklist/
+    └── SKILL.md
+```
+
+The flat directory name is derived from the composite key: slashes become `--`, dots become `-` (e.g., `github.com/acme/company-standards/coding-style` → `github-com--acme--company-standards--coding-style`).
+
+**Project installs** (`craft install`) vendor to `forge/` in the project root (gitignored), using nested composite-key paths.
 
 ## Known Limitations
 

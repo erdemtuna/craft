@@ -57,10 +57,18 @@ func runTree(cmd *cobra.Command, args []string) error {
 			alias = parsed.Repo
 		}
 
+		skills := entry.Skills
+		if globalFlag {
+			skills = make([]string, len(entry.Skills))
+			for i, s := range entry.Skills {
+				skills[i] = parsed.PackageIdentity() + "/" + s
+			}
+		}
+
 		deps = append(deps, ui.DepNode{
 			Alias:  alias,
 			URL:    key,
-			Skills: entry.Skills,
+			Skills: skills,
 		})
 	}
 

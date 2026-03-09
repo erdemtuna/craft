@@ -84,7 +84,14 @@ func runList(cmd *cobra.Command, args []string) error {
 		for _, d := range deps {
 			cmd.Printf("%s  %s  %s\n", sanitize(d.alias), d.version, sanitize(d.url))
 			if len(d.skills) > 0 {
-				cmd.Printf("  skills: %s\n", sanitize(strings.Join(d.skills, ", ")))
+				displaySkills := d.skills
+				if globalFlag {
+					displaySkills = make([]string, len(d.skills))
+					for i, s := range d.skills {
+						displaySkills[i] = d.url + "/" + s
+					}
+				}
+				cmd.Printf("  skills: %s\n", sanitize(strings.Join(displaySkills, ", ")))
 			} else {
 				cmd.Printf("  skills: (none)\n")
 			}

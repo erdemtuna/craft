@@ -86,3 +86,26 @@ func Install(target string, skills map[string]map[string][]byte) error {
 
 	return nil
 }
+
+// FlatKey converts a composite skill key (host/owner/repo/skill) into a flat
+// directory name suitable for agent skill discovery. Slashes become "--" and
+// dots become "-". Casing is preserved.
+//
+// Example: "github.com/org/repo/my-skill" → "github-com--org--repo--my-skill"
+func FlatKey(compositeKey string) string {
+	flat := strings.ReplaceAll(compositeKey, ".", "-")
+	flat = strings.ReplaceAll(flat, "/", "--")
+	return flat
+}
+
+// InstallFlat installs skills using flat directory names so that each skill
+// is a direct child of the target directory. This is used for global installs
+// where AI agents need to discover skills by scanning immediate children.
+// It transforms composite keys via FlatKey then delegates to Install.
+func InstallFlat(target string, skills map[string]map[string][]byte) error {
+	flat := make(map[string]map[string][]byte, len(skills))
+	for k, v := range skills {
+		flat[FlatKey(k)] = v
+	}
+	return Install(target, flat)
+}
