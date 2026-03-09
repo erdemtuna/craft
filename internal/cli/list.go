@@ -82,9 +82,9 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	if listDetailed {
 		for _, d := range deps {
-			cmd.Printf("%s  %s  %s\n", d.alias, d.version, d.url)
+			cmd.Printf("%s  %s  %s\n", sanitize(d.alias), d.version, sanitize(d.url))
 			if len(d.skills) > 0 {
-				cmd.Printf("  skills: %s\n", strings.Join(d.skills, ", "))
+				cmd.Printf("  skills: %s\n", sanitize(strings.Join(d.skills, ", ")))
 			} else {
 				cmd.Printf("  skills: (none)\n")
 			}
@@ -97,7 +97,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			if len(d.skills) == 1 {
 				skillWord = "skill"
 			}
-			fmt.Fprintf(w, "%s\t%s\t(%d %s)\n", d.alias, d.version, len(d.skills), skillWord)
+			fmt.Fprintf(w, "%s\t%s\t(%d %s)\n", sanitize(d.alias), d.version, len(d.skills), skillWord)
 		}
 		w.Flush()
 	}

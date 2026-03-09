@@ -60,7 +60,15 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	var results []depStatus
 
-	for alias, depURL := range m.Dependencies {
+	// Sort dependency aliases for deterministic iteration order and verbose output
+	aliases := make([]string, 0, len(m.Dependencies))
+	for alias := range m.Dependencies {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+
+	for _, alias := range aliases {
+		depURL := m.Dependencies[alias]
 		parsed, err := resolve.ParseDepURL(depURL)
 		if err != nil {
 			results = append(results, depStatus{alias: alias, err: fmt.Errorf("invalid URL: %w", err)})
@@ -73,6 +81,8 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 			if pinParsed, err := resolve.ParseDepURL(pinKey); err == nil {
 				currentVersion = pinParsed.Version
 			}
+		} else {
+			verboseLog(cmd, "No pinfile entry for %s, using manifest version v%s", alias, currentVersion)
 		}
 
 		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
@@ -147,21 +157,21 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	for _, r := range results {
 		if r.err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v\n", r.alias, r.err)
+			fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v\n", sanitize(r.alias), r.err)
 			hasErrors = true
 			continue
 		}
 		if r.warning != "" {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", r.alias, r.warning)
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", sanitize(r.alias), r.warning)
 		}
 		if r.skipped {
 			continue
 		}
 		if r.latest != "" {
-			fmt.Fprintf(w, "%s\tv%s → v%s\t(%s)\n", r.alias, r.current, r.latest, r.updateType)
+			fmt.Fprintf(w, "%s\tv%s → v%s\t(%s)\n", sanitize(r.alias), r.current, r.latest, r.updateType)
 			hasUpdates = true
 		} else {
-			fmt.Fprintf(w, "%s\tv%s\t(up to date)\n", r.alias, r.current)
+			fmt.Fprintf(w, "%s\tv%s\t(up to date)\n", sanitize(r.alias), r.current)
 		}
 	}
 	w.Flush()

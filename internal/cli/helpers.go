@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
+	"github.com/erdemtuna/craft/internal/resolve"
+	"github.com/spf13/cobra"
 )
 
 // requireManifestAndPinfile parses both craft.yaml and craft.pin.yaml from the
@@ -36,4 +39,28 @@ func requireManifestAndPinfile() (*manifest.Manifest, *pinfile.Pinfile, error) {
 	}
 
 	return m, pf, nil
+}
+
+// printDryRunSummary prints what would be resolved without making changes.
+// Used by both install --dry-run and update --dry-run.
+func printDryRunSummary(cmd *cobra.Command, result *resolve.ResolveResult, prefix string) {
+	cmd.Printf("Would resolve %d dependency(ies):\n", len(result.Resolved))
+	for _, dep := range result.Resolved {
+		skillWord := "skills"
+		if len(dep.Skills) == 1 {
+			skillWord = "skill"
+		}
+		parsed, err := resolve.ParseDepURL(dep.URL)
+		if err != nil {
+			cmd.Printf("  %s %s  (%d %s)\n", prefix, sanitize(dep.Alias), len(dep.Skills), skillWord)
+			continue
+		}
+		if len(dep.Skills) > 0 {
+			cmd.Printf("  %s %s  %s  (%d %s: %s)\n", prefix, sanitize(dep.Alias), parsed.GitTag(),
+				len(dep.Skills), skillWord, sanitize(strings.Join(dep.Skills, ", ")))
+		} else {
+			cmd.Printf("  %s %s  %s  (0 skills)\n", prefix, sanitize(dep.Alias), parsed.GitTag())
+		}
+	}
+	cmd.Println("\nNo changes made.")
 }

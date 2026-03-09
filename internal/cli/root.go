@@ -46,11 +46,20 @@ func Execute() error {
 
 // silentExitError signals a non-zero exit code without printing an error message.
 // Used by commands like `craft outdated` that use exit code 1 as a signal (not an error).
-// The code field is currently always 1; it exists for future extensibility.
 type silentExitError struct {
 	code int
 }
 
 func (e *silentExitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.code)
+}
+
+// ExitCode returns the exit code from a silentExitError, or 0 if the error
+// is not a silentExitError. This is used by main.go to propagate the intended
+// exit code to os.Exit.
+func ExitCode(err error) int {
+	if se, ok := err.(*silentExitError); ok {
+		return se.code
+	}
+	return 1
 }

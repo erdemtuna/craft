@@ -345,25 +345,3 @@ func newFetcher() (fetch.GitFetcher, error) {
 	return fetch.NewGoGitFetcher(cache), nil
 }
 
-// printDryRunSummary prints what would be resolved without making changes.
-func printDryRunSummary(cmd *cobra.Command, result *resolve.ResolveResult, prefix string) {
-	cmd.Printf("Would resolve %d dependency(ies):\n", len(result.Resolved))
-	for _, dep := range result.Resolved {
-		skillWord := "skills"
-		if len(dep.Skills) == 1 {
-			skillWord = "skill"
-		}
-		parsed, err := resolve.ParseDepURL(dep.URL)
-		if err != nil {
-			cmd.Printf("  %s %s  (%d %s)\n", prefix, dep.Alias, len(dep.Skills), skillWord)
-			continue
-		}
-		if len(dep.Skills) > 0 {
-			cmd.Printf("  %s %s  %s  (%d %s: %s)\n", prefix, dep.Alias, parsed.GitTag(),
-				len(dep.Skills), skillWord, strings.Join(dep.Skills, ", "))
-		} else {
-			cmd.Printf("  %s %s  %s  (0 skills)\n", prefix, dep.Alias, parsed.GitTag())
-		}
-	}
-	cmd.Println("\nNo changes made.")
-}
