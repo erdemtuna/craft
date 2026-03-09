@@ -45,6 +45,8 @@ func Execute() error {
 }
 
 // silentExitError signals a non-zero exit code without printing an error message.
+// Used by commands like `craft outdated` that use exit code 1 as a signal (not an error).
+// The code field is currently always 1; it exists for future extensibility.
 type silentExitError struct {
 	code int
 }

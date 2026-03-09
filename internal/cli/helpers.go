@@ -10,10 +10,10 @@ import (
 	"github.com/erdemtuna/craft/internal/pinfile"
 )
 
-// loadManifestAndPinfile parses both craft.yaml and craft.pin.yaml from the
+// requireManifestAndPinfile parses both craft.yaml and craft.pin.yaml from the
 // current working directory. It returns a user-friendly error if either file
-// is missing.
-func loadManifestAndPinfile() (*manifest.Manifest, *pinfile.Pinfile, error) {
+// is missing — callers should not proceed without both files.
+func requireManifestAndPinfile() (*manifest.Manifest, *pinfile.Pinfile, error) {
 	root, err := os.Getwd()
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting working directory: %w", err)

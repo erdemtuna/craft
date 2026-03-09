@@ -17,7 +17,7 @@ var treeCmd = &cobra.Command{
 }
 
 func runTree(cmd *cobra.Command, args []string) error {
-	m, pf, err := loadManifestAndPinfile()
+	m, pf, err := requireManifestAndPinfile()
 	if err != nil {
 		return err
 	}
@@ -51,6 +51,7 @@ func runTree(cmd *cobra.Command, args []string) error {
 	for key, entry := range pf.Resolved {
 		parsed, err := resolve.ParseDepURL(key)
 		if err != nil {
+			verboseLog(cmd, "Skipping unparseable pinfile key: %s", key)
 			continue
 		}
 

@@ -25,7 +25,7 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	m, pf, err := loadManifestAndPinfile()
+	m, pf, err := requireManifestAndPinfile()
 	if err != nil {
 		return err
 	}

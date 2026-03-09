@@ -358,8 +358,12 @@ func printDryRunSummary(cmd *cobra.Command, result *resolve.ResolveResult, prefi
 			cmd.Printf("  %s %s  (%d %s)\n", prefix, dep.Alias, len(dep.Skills), skillWord)
 			continue
 		}
-		cmd.Printf("  %s %s  %s  (%d %s: %s)\n", prefix, dep.Alias, parsed.GitTag(),
-			len(dep.Skills), skillWord, strings.Join(dep.Skills, ", "))
+		if len(dep.Skills) > 0 {
+			cmd.Printf("  %s %s  %s  (%d %s: %s)\n", prefix, dep.Alias, parsed.GitTag(),
+				len(dep.Skills), skillWord, strings.Join(dep.Skills, ", "))
+		} else {
+			cmd.Printf("  %s %s  %s  (0 skills)\n", prefix, dep.Alias, parsed.GitTag())
+		}
 	}
 	cmd.Println("\nNo changes made.")
 }
