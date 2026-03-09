@@ -96,6 +96,76 @@ dependencies:
 	}
 }
 
+func TestOutdatedSkipsBranchDeps(t *testing.T) {
+	dir := t.TempDir()
+	testChdir(t, dir)
+
+	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
+name: test-pkg
+skills:
+  - skills/local
+dependencies:
+  branch-dep: github.com/org/repo@branch:main
+`))
+
+	testWriteFile(t, "craft.pin.yaml", []byte(`pin_version: 1
+resolved:
+  github.com/org/repo@branch:main:
+    commit: abc123
+    ref_type: branch
+    integrity: sha256-test
+    skills:
+      - some-skill
+`))
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(errBuf)
+	rootCmd.SetArgs([]string{"outdated"})
+
+	err := rootCmd.Execute()
+	// Should not error — branch deps are silently skipped
+	if err != nil {
+		t.Fatalf("outdated should not error for branch deps: %v", err)
+	}
+}
+
+func TestOutdatedSkipsCommitDeps(t *testing.T) {
+	dir := t.TempDir()
+	testChdir(t, dir)
+
+	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
+name: test-pkg
+skills:
+  - skills/local
+dependencies:
+  commit-dep: github.com/org/repo@abc1234def5678
+`))
+
+	testWriteFile(t, "craft.pin.yaml", []byte(`pin_version: 1
+resolved:
+  github.com/org/repo@abc1234def5678:
+    commit: abc1234def5678
+    ref_type: commit
+    integrity: sha256-test
+    skills:
+      - some-skill
+`))
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(errBuf)
+	rootCmd.SetArgs([]string{"outdated"})
+
+	err := rootCmd.Execute()
+	// Should not error — commit deps are silently skipped
+	if err != nil {
+		t.Fatalf("outdated should not error for commit deps: %v", err)
+	}
+}
+
 func TestPrintDryRunSummary(t *testing.T) {
 	result := &resolve.ResolveResult{
 		Resolved: []resolve.ResolvedDep{

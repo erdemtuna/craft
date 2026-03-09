@@ -297,3 +297,79 @@ resolved:
 		t.Errorf("detailed output should show '(none)' for zero skills, got %q", output)
 	}
 }
+
+func TestListBranchDep(t *testing.T) {
+	dir := t.TempDir()
+	testChdir(t, dir)
+
+	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
+name: test-pkg
+skills:
+  - skills/local
+dependencies:
+  my-dep: github.com/org/repo@branch:main
+`))
+
+	testWriteFile(t, "craft.pin.yaml", []byte(`pin_version: 1
+resolved:
+  github.com/org/repo@branch:main:
+    commit: abc123
+    ref_type: branch
+    integrity: sha256-test
+    skills:
+      - some-skill
+`))
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{"list"})
+
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("list command failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "branch:main") {
+		t.Errorf("output should show 'branch:main' for branch dep, got %q", output)
+	}
+}
+
+func TestListCommitDep(t *testing.T) {
+	dir := t.TempDir()
+	testChdir(t, dir)
+
+	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
+name: test-pkg
+skills:
+  - skills/local
+dependencies:
+  my-dep: github.com/org/repo@abc1234def5678
+`))
+
+	testWriteFile(t, "craft.pin.yaml", []byte(`pin_version: 1
+resolved:
+  github.com/org/repo@abc1234def5678:
+    commit: abc1234def5678
+    ref_type: commit
+    integrity: sha256-test
+    skills:
+      - some-skill
+`))
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{"list"})
+
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("list command failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "abc1234def5678") {
+		t.Errorf("output should show commit SHA for commit dep, got %q", output)
+	}
+}

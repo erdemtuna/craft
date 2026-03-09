@@ -70,7 +70,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 		deps = append(deps, depInfo{
 			alias:   alias,
-			version: "v" + parsed.Version,
+			version: parsed.RefString(),
 			url:     parsed.PackageIdentity(),
 			skills:  entry.Skills,
 		})
