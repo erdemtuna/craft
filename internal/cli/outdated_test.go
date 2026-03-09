@@ -48,7 +48,6 @@ func TestOutdatedZeroDependencies(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))
@@ -77,7 +76,6 @@ func TestOutdatedNoPinfile(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:
@@ -133,7 +131,6 @@ func TestInstallDryRunZeroDeps(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))
@@ -159,7 +156,6 @@ func TestUpdateDryRunZeroDeps(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))

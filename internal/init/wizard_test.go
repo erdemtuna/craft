@@ -15,7 +15,7 @@ func TestWizardBasicFlow(t *testing.T) {
 	createSkillDir(t, root, "skills/my-skill")
 
 	// Simulate user input: accept all defaults (empty lines)
-	input := "\n\n\n\n"
+	input := "\n\n\n"
 	in := strings.NewReader(input)
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
@@ -42,8 +42,8 @@ func TestWizardBasicFlow(t *testing.T) {
 	if !strings.Contains(content, "schema_version: 1") {
 		t.Error("craft.yaml should contain schema_version: 1")
 	}
-	if !strings.Contains(content, "version: 0.1.0") {
-		t.Error("craft.yaml should contain default version 0.1.0")
+	if strings.Contains(content, "\nversion:") {
+		t.Error("craft.yaml should not contain a version field")
 	}
 	if !strings.Contains(content, "skills/my-skill") {
 		t.Error("craft.yaml should contain discovered skill path")
@@ -53,8 +53,8 @@ func TestWizardBasicFlow(t *testing.T) {
 func TestWizardCustomValues(t *testing.T) {
 	root := t.TempDir()
 
-	// Provide custom values
-	input := "my-custom-pkg\n2.0.0\nMy awesome package\nMIT\n"
+	// Provide custom values (name, description, license)
+	input := "my-custom-pkg\nMy awesome package\nMIT\n"
 	in := strings.NewReader(input)
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
@@ -74,9 +74,6 @@ func TestWizardCustomValues(t *testing.T) {
 	if !strings.Contains(content, "name: my-custom-pkg") {
 		t.Error("craft.yaml should contain custom name")
 	}
-	if !strings.Contains(content, "version: 2.0.0") {
-		t.Error("craft.yaml should contain custom version")
-	}
 	if !strings.Contains(content, "description: My awesome package") {
 		t.Error("craft.yaml should contain custom description")
 	}
@@ -89,7 +86,7 @@ func TestWizardInvalidNameRetry(t *testing.T) {
 	root := t.TempDir()
 
 	// First name invalid (uppercase), second valid
-	input := "INVALID\nvalid-name\n1.0.0\n\n\n"
+	input := "INVALID\nvalid-name\n\n\n"
 	in := strings.NewReader(input)
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
@@ -155,7 +152,7 @@ func TestWizardOverwriteAccept(t *testing.T) {
 	}
 
 	// Accept overwrite, then provide values
-	input := "y\nnew-pkg\n1.0.0\n\n\n"
+	input := "y\nnew-pkg\n\n\n"
 	in := strings.NewReader(input)
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
@@ -203,17 +200,5 @@ func TestValidateName(t *testing.T) {
 	}
 	if err := validateName(""); err == nil {
 		t.Error("Empty name accepted")
-	}
-}
-
-func TestValidateVersion(t *testing.T) {
-	if err := validateVersion("1.0.0"); err != nil {
-		t.Errorf("Valid version rejected: %v", err)
-	}
-	if err := validateVersion("bad"); err == nil {
-		t.Error("Invalid version accepted")
-	}
-	if err := validateVersion(""); err == nil {
-		t.Error("Empty version accepted")
 	}
 }

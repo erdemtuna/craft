@@ -13,7 +13,6 @@ func TestListWithDependencies(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:
@@ -58,7 +57,6 @@ func TestListDetailed(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:
@@ -101,7 +99,6 @@ func TestListNoPinfile(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))
@@ -126,7 +123,6 @@ func TestListZeroDependencies(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 `))
@@ -157,7 +153,6 @@ func TestListSingleSkill(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:
@@ -216,7 +211,6 @@ func TestListSortOrder(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:
@@ -273,7 +267,6 @@ func TestListDetailedZeroSkills(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:

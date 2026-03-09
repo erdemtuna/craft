@@ -219,9 +219,6 @@ func promptAgentChoice(agents []agent.DetectResult, in io.Reader, errOut io.Writ
 // printDependencyTree prints a formatted dependency tree to stderr.
 func printDependencyTree(cmd *cobra.Command, m *manifest.Manifest, result *resolve.ResolveResult) {
 	packageName := m.Name
-	if m.Version != "" {
-		packageName += "@" + m.Version
-	}
 
 	// Extract local skill names from paths
 	var localSkills []string

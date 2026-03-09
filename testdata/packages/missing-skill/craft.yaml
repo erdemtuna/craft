@@ -1,6 +1,5 @@
 schema_version: 1
 name: missing-skill
-version: 1.0.0
 skills:
   - ./skills/exists
   - ./skills/does-not-exist

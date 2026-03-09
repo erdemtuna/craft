@@ -102,7 +102,6 @@ func TestWriteManifestAtomic(t *testing.T) {
 	m := &manifest.Manifest{
 		SchemaVersion: 1,
 		Name:          "test-pkg",
-		Version:       "1.0.0",
 		Skills:        []string{"skills/lint"},
 		Dependencies: map[string]string{
 			"tools": "github.com/org/tools@v1.0.0",
@@ -143,7 +142,6 @@ func TestWriteManifestAtomic_OverwriteExisting(t *testing.T) {
 	m := &manifest.Manifest{
 		SchemaVersion: 1,
 		Name:          "updated",
-		Version:       "2.0.0",
 		Skills:        []string{"skills/new"},
 	}
 
@@ -168,7 +166,6 @@ func TestWriteManifestAtomic_BadPath(t *testing.T) {
 	err := writeManifestAtomic("/nonexistent/dir/craft.yaml", &manifest.Manifest{
 		SchemaVersion: 1,
 		Name:          "test",
-		Version:       "1.0.0",
 	})
 	if err == nil {
 		t.Error("expected error for nonexistent directory")

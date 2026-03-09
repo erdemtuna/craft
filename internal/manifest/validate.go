@@ -10,10 +10,6 @@ import (
 // Examples: "my-package", "craft", "code-quality-tools"
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
-// semverPattern matches strict MAJOR.MINOR.PATCH version strings.
-// No pre-release, build metadata, or leading zeros allowed.
-var semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
-
 // depURLPattern matches dependency URL format: host/org/repo@<ref>
 // where ref is one of: vMAJOR.MINOR.PATCH (tag), hex≥7 (commit SHA), or branch:<name>.
 var depURLPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@(v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)|[0-9a-fA-F]{7,64}|branch:.+)$`)
@@ -35,13 +31,6 @@ func Validate(m *Manifest) []error {
 		errs = append(errs, fmt.Errorf("name: must be 1–128 characters, got %d", len(m.Name)))
 	} else if !namePattern.MatchString(m.Name) {
 		errs = append(errs, fmt.Errorf("name: %q does not match required format (lowercase alphanumeric with hyphens, e.g. 'my-package')", m.Name))
-	}
-
-	// version is required and must be strict semver
-	if m.Version == "" {
-		errs = append(errs, fmt.Errorf("version: required field is missing"))
-	} else if !semverPattern.MatchString(m.Version) {
-		errs = append(errs, fmt.Errorf("version: %q is not valid semver (expected MAJOR.MINOR.PATCH, e.g. '1.0.0')", m.Version))
 	}
 
 	// skills must be non-empty
@@ -70,18 +59,6 @@ func ValidateName(name string) error {
 	}
 	if !namePattern.MatchString(name) {
 		return fmt.Errorf("%q does not match required format (lowercase alphanumeric with hyphens, e.g. 'my-package')", name)
-	}
-	return nil
-}
-
-// ValidateVersion checks if a string is a valid semver version.
-// Returns an error describing the issue, or nil if valid.
-func ValidateVersion(ver string) error {
-	if ver == "" {
-		return fmt.Errorf("version is required")
-	}
-	if !semverPattern.MatchString(ver) {
-		return fmt.Errorf("%q is not valid semver (expected MAJOR.MINOR.PATCH, e.g. '1.0.0')", ver)
 	}
 	return nil
 }

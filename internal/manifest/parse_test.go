@@ -8,7 +8,6 @@ import (
 func TestParseValid(t *testing.T) {
 	input := `schema_version: 1
 name: code-quality
-version: 1.0.0
 description: Test package.
 license: MIT
 skills:
@@ -29,9 +28,6 @@ metadata:
 	}
 	if m.Name != "code-quality" {
 		t.Errorf("Name = %q, want %q", m.Name, "code-quality")
-	}
-	if m.Version != "1.0.0" {
-		t.Errorf("Version = %q, want %q", m.Version, "1.0.0")
 	}
 	if m.Description != "Test package." {
 		t.Errorf("Description = %q, want %q", m.Description, "Test package.")
@@ -59,7 +55,6 @@ metadata:
 func TestParseMinimal(t *testing.T) {
 	input := `schema_version: 1
 name: minimal
-version: 0.1.0
 skills:
   - ./my-skill
 `
@@ -82,7 +77,6 @@ skills:
 func TestParseUnknownFields(t *testing.T) {
 	input := `schema_version: 1
 name: extras
-version: 1.0.0
 skills:
   - ./skill
 custom_field: hello

@@ -1,6 +1,5 @@
 schema_version: 1
 name: code-quality
-version: 1.0.0
 description: Automated code review and linting skills.
 license: MIT
 

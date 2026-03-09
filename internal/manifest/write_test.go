@@ -11,7 +11,6 @@ func TestWriteRoundTrip(t *testing.T) {
 	original := &Manifest{
 		SchemaVersion: 1,
 		Name:          "round-trip",
-		Version:       "1.0.0",
 		Description:   "Test round-trip.",
 		License:       "MIT",
 		Skills:        []string{"./skills/one", "./skills/two"},
@@ -39,9 +38,6 @@ func TestWriteRoundTrip(t *testing.T) {
 	if parsed.Name != original.Name {
 		t.Errorf("Name: got %q, want %q", parsed.Name, original.Name)
 	}
-	if parsed.Version != original.Version {
-		t.Errorf("Version: got %q, want %q", parsed.Version, original.Version)
-	}
 	if parsed.Description != original.Description {
 		t.Errorf("Description: got %q, want %q", parsed.Description, original.Description)
 	}
@@ -68,7 +64,6 @@ func TestWriteFieldOrder(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "ordered",
-		Version:       "1.0.0",
 		Description:   "Test ordering.",
 		Skills:        []string{"./skill"},
 	}
@@ -80,24 +75,20 @@ func TestWriteFieldOrder(t *testing.T) {
 
 	output := buf.String()
 
-	// schema_version should appear before name, which should appear before version
+	// schema_version should appear before name, which should appear before skills
 	schemaIdx := strings.Index(output, "schema_version")
 	nameIdx := strings.Index(output, "\nname:")
-	versionIdx := strings.Index(output, "\nversion:")
 	skillsIdx := strings.Index(output, "\nskills:")
 
-	if schemaIdx == -1 || nameIdx == -1 || versionIdx == -1 || skillsIdx == -1 {
+	if schemaIdx == -1 || nameIdx == -1 || skillsIdx == -1 {
 		t.Fatalf("Missing expected fields in output:\n%s", output)
 	}
 
 	if schemaIdx >= nameIdx {
 		t.Error("schema_version should appear before name")
 	}
-	if nameIdx >= versionIdx {
-		t.Error("name should appear before version")
-	}
-	if versionIdx >= skillsIdx {
-		t.Error("version should appear before skills")
+	if nameIdx >= skillsIdx {
+		t.Error("name should appear before skills")
 	}
 }
 
@@ -105,7 +96,6 @@ func TestWriteOmitsEmpty(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "minimal",
-		Version:       "0.1.0",
 		Skills:        []string{"./skill"},
 	}
 
@@ -133,7 +123,6 @@ func TestWriteMapKeyOrder(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "key-order",
-		Version:       "1.0.0",
 		Skills:        []string{"./skill"},
 		Dependencies: map[string]string{
 			"charlie": "github.com/org/charlie@v1.0.0",
@@ -188,7 +177,6 @@ func TestWriteError(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: 1,
 		Name:          "err-test",
-		Version:       "1.0.0",
 		Skills:        []string{"./skill"},
 	}
 

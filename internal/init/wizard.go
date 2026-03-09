@@ -76,12 +76,6 @@ func (w *Wizard) Run() error {
 		return err
 	}
 
-	// Prompt for version
-	version, err := w.promptValidated(scanner, "Version (0.1.0)", "0.1.0", validateVersion)
-	if err != nil {
-		return err
-	}
-
 	// Prompt for description (no validation)
 	description, _, err := w.prompt(scanner, "Description", "")
 	if err != nil {
@@ -118,7 +112,6 @@ func (w *Wizard) Run() error {
 	m := &manifest.Manifest{
 		SchemaVersion: 1,
 		Name:          name,
-		Version:       version,
 		Description:   description,
 		License:       license,
 		Skills:        skills,
@@ -148,7 +141,7 @@ func (w *Wizard) Run() error {
 	}
 
 	_, _ = fmt.Fprintln(w.Out)
-	_, _ = fmt.Fprintf(w.Out, "Created craft.yaml for package %q (%s)\n", name, version)
+	_, _ = fmt.Fprintf(w.Out, "Created craft.yaml for package %q\n", name)
 
 	return nil
 }
@@ -263,12 +256,6 @@ func inferPackageName(root string) string {
 // Delegates to manifest.ValidateName for consistent validation rules.
 func validateName(name string) error {
 	return manifest.ValidateName(name)
-}
-
-// validateVersion checks if a string is a valid semver version.
-// Delegates to manifest.ValidateVersion for consistent validation rules.
-func validateVersion(ver string) error {
-	return manifest.ValidateVersion(ver)
 }
 
 // isTerminal checks if the given file is a terminal.

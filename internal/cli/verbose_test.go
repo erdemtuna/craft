@@ -95,7 +95,6 @@ func TestVerboseListOutput(t *testing.T) {
 
 	testWriteFile(t, "craft.yaml", []byte(`schema_version: 1
 name: test-pkg
-version: 1.0.0
 skills:
   - skills/local
 dependencies:

@@ -30,7 +30,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	verboseLog(cmd, "Loaded manifest: %s@%s", m.Name, m.Version)
+	verboseLog(cmd, "Loaded manifest: %s", m.Name)
 	verboseLog(cmd, "Loaded pinfile with %d resolved entries", len(pf.Resolved))
 
 	if len(pf.Resolved) == 0 {
