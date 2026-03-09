@@ -40,11 +40,11 @@ Key positive: the fetcher already resolves branch names, and `PackageIdentity()`
 - Changes to the fetcher's `ResolveRef` implementation for basic branch support (already works)
 
 ## Phase Status
-- [ ] **Phase 1: Foundation Types & Parsing** - Add RefType, extend DepURL, update parsing and manifest validation
-- [ ] **Phase 2: Resolution Pipeline & Pinfile** - Ref-type-aware resolver routing, conflict detection, pinfile ref_type field
-- [ ] **Phase 3: CLI Commands** - Non-tagged ref support in craft add and craft update
-- [ ] **Phase 4: Validation Warnings** - Non-tagged dependency warnings in craft validate
-- [ ] **Phase 5: Documentation** - Technical reference and README updates
+- [x] **Phase 1: Foundation Types & Parsing** - Add RefType, extend DepURL, update parsing and manifest validation
+- [x] **Phase 2: Resolution Pipeline & Pinfile** - Ref-type-aware resolver routing, conflict detection, pinfile ref_type field
+- [x] **Phase 3: CLI Commands** - Non-tagged ref support in craft add and craft update
+- [x] **Phase 4: Validation Warnings** - Non-tagged dependency warnings in craft validate
+- [x] **Phase 5: Documentation** - Technical reference and README updates
 
 ## Phase Candidates
 <!-- No unresolved candidates — all features mapped to phases -->
