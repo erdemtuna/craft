@@ -19,6 +19,7 @@ import (
 )
 
 var updateTarget string
+var updateDryRun bool
 
 var updateCmd = &cobra.Command{
 	Use:   "update [alias]",
@@ -30,6 +31,7 @@ var updateCmd = &cobra.Command{
 
 func init() {
 	updateCmd.Flags().StringVar(&updateTarget, "target", "", "Override agent auto-detection with a custom install path")
+	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "Show what would be updated without making changes")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -138,6 +140,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		progress.Fail("Resolution failed")
 		return fmt.Errorf("resolution failed: %w", err)
+	}
+
+	// Dry-run: show what would change and exit
+	if updateDryRun {
+		progress.Done("Dry-run complete")
+		printDryRunSummary(cmd, result, "~")
+		return nil
 	}
 
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {

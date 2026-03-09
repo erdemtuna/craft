@@ -22,6 +22,7 @@ import (
 )
 
 var installTarget string
+var installDryRun bool
 
 var installCmd = &cobra.Command{
 	Use:   "install",
@@ -33,6 +34,7 @@ var installCmd = &cobra.Command{
 
 func init() {
 	installCmd.Flags().StringVar(&installTarget, "target", "", "Override agent auto-detection with a custom install path")
+	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Show what would be resolved and installed without making changes")
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
@@ -81,6 +83,13 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolution failed: %w", err)
 	}
 	progress.Update(fmt.Sprintf("Resolved %d dependency(ies)", len(result.Resolved)))
+
+	// Dry-run: show what would happen and exit
+	if installDryRun {
+		progress.Done("Dry-run complete")
+		printDryRunSummary(cmd, result, "+")
+		return nil
+	}
 
 	// Write pinfile atomically
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
