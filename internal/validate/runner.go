@@ -52,8 +52,8 @@ func (r *Runner) Run() *Result {
 	// Check 6: Non-tagged dependency warnings
 	r.checkNonTaggedDeps(result, m, p)
 
-	// Check 6: Skill path safety (done inline in checkSkills)
-	// Check 7: Symlink cycle detection (done inline in checkSkills)
+	// Check 7: Skill path safety (done inline in checkSkills)
+	// Check 8: Symlink cycle detection (done inline in checkSkills)
 
 	return result
 }
@@ -115,7 +115,7 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 		}
 		seen[cleaned] = true
 
-		// Check 6: Skill path safety — must be relative, within package root
+		// Check 7: Skill path safety — must be relative, within package root
 		if filepath.IsAbs(skillPath) {
 			result.Errors = append(result.Errors, &Error{
 				Category:   CategorySafety,
@@ -139,7 +139,7 @@ func (r *Runner) checkSkills(result *Result, m *manifest.Manifest) map[string][]
 
 		absPath := filepath.Join(r.Root, cleaned)
 
-		// Check 7: Verify directory exists (also catches symlink cycles
+		// Check 8: Verify directory exists (also catches symlink cycles
 		// since os.Stat follows symlinks and will error on cycles)
 		info, err := os.Stat(absPath)
 		if err != nil {

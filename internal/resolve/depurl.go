@@ -70,7 +70,7 @@ type DepURL struct {
 //
 // Returns an error if the URL does not match any expected format.
 func ParseDepURL(raw string) (*DepURL, error) {
-	atIdx := strings.LastIndex(raw, "@")
+	atIdx := strings.Index(raw, "@")
 	if atIdx < 0 {
 		return nil, fmt.Errorf("invalid dependency URL %q: missing '@' — expected host/org/repo@<ref> where ref is vX.Y.Z, a commit SHA, or branch:<name>", raw)
 	}
@@ -105,7 +105,7 @@ func ParseDepURL(raw string) (*DepURL, error) {
 		d.Version = m[1]
 		d.RefType = RefTypeTag
 	} else if hexPattern.MatchString(ref) && len(ref) >= minCommitSHALength && len(ref) <= maxCommitSHALength {
-		d.Ref = ref
+		d.Ref = strings.ToLower(ref)
 		d.RefType = RefTypeCommit
 	} else {
 		return nil, fmt.Errorf("invalid dependency URL %q: ref %q is not a valid semver tag (vX.Y.Z), commit SHA (≥7 hex chars), or branch (branch:<name>)", raw, ref)

@@ -130,14 +130,6 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 						return nil, fmt.Errorf("conflicting commit SHAs for package %s: %s vs %s — resolve manually", identity, bestParsed.Ref, parsed.Ref)
 					}
 				}
-				// Prefer direct dep metadata
-				for _, dep := range deps {
-					if dep.Source == "" {
-						best.Alias = dep.Alias
-						best.Source = dep.Source
-						break
-					}
-				}
 				selected[identity] = best
 
 			case RefTypeBranch:
@@ -150,18 +142,24 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 						return nil, fmt.Errorf("conflicting branch names for package %s: %s vs %s — resolve manually", identity, bestParsed.Ref, parsed.Ref)
 					}
 				}
-				// Prefer direct dep metadata
-				for _, dep := range deps {
-					if dep.Source == "" {
-						best.Alias = dep.Alias
-						best.Source = dep.Source
-						break
-					}
-				}
 				selected[identity] = best
 
 			default:
 				selected[identity] = deps[0]
+			}
+
+			// Prefer direct dep metadata for commit/branch ref types
+			if firstRefType == RefTypeCommit || firstRefType == RefTypeBranch {
+				if best, ok := selected[identity]; ok {
+					for _, dep := range deps {
+						if dep.Source == "" {
+							best.Alias = dep.Alias
+							best.Source = dep.Source
+							selected[identity] = best
+							break
+						}
+					}
+				}
 			}
 		}
 
@@ -174,7 +172,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 			}
 			parsed, _ := ParseDepURL(dep.URL)
 			visitedVersion, ok := visited[identity]
-			if !ok || visitedVersion == parsed.Version {
+			if !ok || visitedVersion == parsed.GitRef() {
 				continue
 			}
 
@@ -184,7 +182,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 				return nil, fmt.Errorf("resolving %s: %w", dep.URL, err)
 			}
 
-			visited[identity] = parsed.Version
+			visited[identity] = parsed.GitRef()
 
 			files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
 			if err != nil {
@@ -292,7 +290,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		if _, ok := visited[identity]; ok {
 			continue
 		}
-		visited[identity] = parsed.Version
+		visited[identity] = parsed.GitRef()
 		if len(visited) > maxTotalDeps {
 			return nil, fmt.Errorf("dependency resolution exceeded maximum of %d total dependencies", maxTotalDeps)
 		}

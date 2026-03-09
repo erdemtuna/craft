@@ -580,7 +580,78 @@ func TestResolveDifferentBranchConflict(t *testing.T) {
 	}
 }
 
-// Ensure unused imports don't cause issues
-var _ = fmt.Sprint
-var _ = semver.Compare
-var _ = pinfile.Pinfile{}
+func TestResolveBranchDepBypassesPinfileCache(t *testing.T) {
+	mock := newTestFetcher()
+	setupBranchDep(mock, "github.com/acme/tools", "main", "freshcommit123abc", "---\nname: tool-skill\n---\n")
+
+	existingPinfile := &pinfile.Pinfile{
+		PinVersion: 1,
+		Resolved: map[string]pinfile.ResolvedEntry{
+			"github.com/acme/tools@branch:main": {
+				Commit:    "stalecommit999def",
+				Integrity: "sha256-stale=",
+				RefType:   "branch",
+				Skills:    []string{"tool-skill"},
+			},
+		},
+	}
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name:         "test",
+		Dependencies: map[string]string{"tools": "github.com/acme/tools@branch:main"},
+	}
+
+	result, err := resolver.Resolve(m, ResolveOptions{ExistingPinfile: existingPinfile})
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+	if len(result.Resolved) != 1 {
+		t.Fatalf("Expected 1 resolved, got %d", len(result.Resolved))
+	}
+	if result.Resolved[0].Commit != "freshcommit123abc" {
+		t.Errorf("Branch dep should bypass pinfile cache: got commit %q, want freshcommit123abc", result.Resolved[0].Commit)
+	}
+}
+
+func TestResolveConflictingCommitSHAs(t *testing.T) {
+	mock := newTestFetcher()
+
+	// Root depends on B and C, both of which transitively depend on
+	// the same package (tools) but at different commit SHAs.
+	bClone := "https://github.com/org/b.git"
+	cClone := "https://github.com/org/c.git"
+
+	commitA := "aaaa1234567890aaaa1234567890aaaa1234aaaa"
+	commitB := "bbbb1234567890bbbb1234567890bbbb1234bbbb"
+
+	mock.Refs[bClone+":v1.0.0"] = "bbb"
+	mock.Trees[bClone+":bbb"] = []string{"skills/b-skill/SKILL.md"}
+	mock.Files[bClone+":bbb:skills/b-skill/SKILL.md"] = []byte("---\nname: b-skill\n---\n")
+	mock.Files[bClone+":bbb:craft.yaml"] = []byte("schema_version: 1\nname: b\nversion: 1.0.0\nskills:\n  - ./skills/b-skill\ndependencies:\n  tools: github.com/acme/tools@" + commitA + "\n")
+
+	mock.Refs[cClone+":v1.0.0"] = "ccc"
+	mock.Trees[cClone+":ccc"] = []string{"skills/c-skill/SKILL.md"}
+	mock.Files[cClone+":ccc:skills/c-skill/SKILL.md"] = []byte("---\nname: c-skill\n---\n")
+	mock.Files[cClone+":ccc:craft.yaml"] = []byte("schema_version: 1\nname: c\nversion: 1.0.0\nskills:\n  - ./skills/c-skill\ndependencies:\n  tools: github.com/acme/tools@" + commitB + "\n")
+
+	setupCommitDep(mock, "github.com/acme/tools", commitA, "---\nname: tool-skill\n---\n")
+	setupCommitDep(mock, "github.com/acme/tools", commitB, "---\nname: tool-skill\n---\n")
+
+	resolver := NewResolver(mock)
+	m := &manifest.Manifest{
+		Name: "test",
+		Dependencies: map[string]string{
+			"b": "github.com/org/b@v1.0.0",
+			"c": "github.com/org/c@v1.0.0",
+		},
+	}
+
+	_, err := resolver.Resolve(m, ResolveOptions{})
+	if err == nil {
+		t.Fatal("Expected conflict error for different commit SHAs, got nil")
+	}
+	if !strings.Contains(err.Error(), "conflicting commit SHAs") {
+		t.Errorf("Error = %q, want commit SHA conflict message", err.Error())
+	}
+}

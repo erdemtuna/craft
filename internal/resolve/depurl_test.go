@@ -115,7 +115,7 @@ func TestParseDepURL(t *testing.T) {
 				Host:    "github.com",
 				Org:     "acme",
 				Repo:    "tools",
-				Ref:     "ABC1234DEF567",
+				Ref:     "abc1234def567",
 				RefType: RefTypeCommit,
 			},
 		},
