@@ -92,14 +92,14 @@ func isTrustedHost(rawURL string) bool {
 // should attempt the operation and wrap any auth errors with suggestions.
 func Auth(url string) transport.AuthMethod {
 	// CRAFT_TOKEN: scoped to trusted hosts
-	if token := os.Getenv("CRAFT_TOKEN"); token != "" && isTrustedHost(url) {
+	if token := strings.TrimSpace(os.Getenv("CRAFT_TOKEN")); token != "" && isTrustedHost(url) {
 		return &http.BasicAuth{
 			Username: "x-access-token",
 			Password: token,
 		}
 	}
 	// GITHUB_TOKEN: scoped to GitHub hosts only
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" && isGitHubHost(url) {
+	if token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); token != "" && isGitHubHost(url) {
 		return &http.BasicAuth{
 			Username: "x-access-token",
 			Password: token,

@@ -53,7 +53,8 @@ type ResolveResult struct {
 func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveResult, error) {
 	if len(m.Dependencies) == 0 {
 		return &ResolveResult{
-			Pinfile: &pinfile.Pinfile{PinVersion: 1, Resolved: map[string]pinfile.ResolvedEntry{}},
+			Resolved: []ResolvedDep{},
+			Pinfile:  &pinfile.Pinfile{PinVersion: 1, Resolved: map[string]pinfile.ResolvedEntry{}},
 		}, nil
 	}
 
@@ -90,8 +91,10 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 		selected = make(map[string]ResolvedDep)
 		for identity, deps := range byIdentity {
 			best := deps[0]
+			// Error ignored: URL was validated in collectDeps
 			bestParsed, _ := ParseDepURL(best.URL)
 			for _, dep := range deps[1:] {
+				// Error ignored: URL was validated in collectDeps
 				parsed, _ := ParseDepURL(dep.URL)
 				if semver.Compare(parsed.Version, bestParsed.Version) > 0 {
 					best = dep
@@ -100,6 +103,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 			}
 			// Prefer direct dep metadata (Source == "") when available
 			for _, dep := range deps {
+				// Error ignored: URL was validated in collectDeps
 				depParsed, _ := ParseDepURL(dep.URL)
 				if depParsed.Version == bestParsed.Version && dep.Source == "" {
 					best.Alias = dep.Alias
@@ -114,6 +118,7 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 		// a different version than what was first visited.
 		changed := false
 		for identity, dep := range selected {
+			// Error ignored: URL was validated in collectDeps
 			parsed, _ := ParseDepURL(dep.URL)
 			visitedVersion, ok := visited[identity]
 			if !ok || visitedVersion == parsed.Version {
