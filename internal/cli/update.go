@@ -24,9 +24,13 @@ var updateDryRun bool
 var updateCmd = &cobra.Command{
 	Use:   "update [alias]",
 	Short: "Update dependencies to latest versions",
-	Long:  "Re-resolve dependencies to latest available semver tags. Updates craft.yaml and craft.pin.yaml.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runUpdate,
+	Long: `Re-resolve dependencies to latest available versions. Updates craft.yaml and craft.pin.yaml.
+
+For tagged deps: finds latest semver tag via MVS.
+For branch-tracked deps: re-resolves to latest branch HEAD commit.
+For commit-pinned deps: skipped (commit pins are deliberate freezes).`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runUpdate,
 }
 
 func init() {
@@ -72,6 +76,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Load existing pinfile (needed for branch update comparison)
+	var existingPinfile *pinfile.Pinfile
+	pfPath := filepath.Join(root, "craft.pin.yaml")
+	if pf, err := pinfile.ParseFile(pfPath); err == nil {
+		existingPinfile = pf
+	}
+
 	// Find latest versions for targeted deps
 	progress.Start("Checking for updates...")
 	updated := false
@@ -85,24 +96,55 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid dependency URL for %q: %w", alias, err)
 		}
 
-		cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
-
-		tags, err := fetcher.ListTags(cloneURL)
-		if err != nil {
-			return fmt.Errorf("listing tags for %s: %w\n  hint: check your connection or set GITHUB_TOKEN for private repos", depURL, err)
-		}
-
-		latest := semver.FindLatest(tags)
-		if latest == "" {
-			cmd.PrintErrf("warning: no semver tags found for %s\n", parsed.PackageIdentity())
+		switch parsed.RefType {
+		case resolve.RefTypeCommit:
+			// Commit pins are deliberate freezes — skip silently
 			continue
-		}
 
-		if semver.Compare(strings.TrimPrefix(latest, "v"), parsed.Version) > 0 {
-			newURL := parsed.WithVersion(latest)
-			m.Dependencies[alias] = newURL
+		case resolve.RefTypeBranch:
+			// Re-resolve branch HEAD to detect changes
+			cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
+			commitSHA, err := fetcher.ResolveRef(cloneURL, parsed.GitRef())
+			if err != nil {
+				return fmt.Errorf("resolving branch %q for %s: %w\n  hint: check if the branch still exists", parsed.Ref, depURL, err)
+			}
+
+			// Compare against existing pinfile to detect changes
+			if existingPinfile != nil {
+				if entry, ok := existingPinfile.Resolved[depURL]; ok {
+					if entry.Commit == commitSHA {
+						continue // No change
+					}
+				}
+			}
+			// Branch HEAD changed — force re-resolution
 			updated = true
-			cmd.Printf("  %s: %s → %s\n", alias, parsed.GitRef(), latest)
+			short := commitSHA
+			if len(short) > 12 {
+				short = short[:12]
+			}
+			cmd.Printf("  %s: branch:%s → %s\n", alias, parsed.Ref, short)
+
+		case resolve.RefTypeTag:
+			cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
+
+			tags, err := fetcher.ListTags(cloneURL)
+			if err != nil {
+				return fmt.Errorf("listing tags for %s: %w\n  hint: check your connection or set GITHUB_TOKEN for private repos", depURL, err)
+			}
+
+			latest := semver.FindLatest(tags)
+			if latest == "" {
+				cmd.PrintErrf("warning: no semver tags found for %s\n", parsed.PackageIdentity())
+				continue
+			}
+
+			if semver.Compare(strings.TrimPrefix(latest, "v"), parsed.Version) > 0 {
+				newURL := parsed.WithVersion(latest)
+				m.Dependencies[alias] = newURL
+				updated = true
+				cmd.Printf("  %s: %s → %s\n", alias, parsed.GitRef(), latest)
+			}
 		}
 	}
 
@@ -115,21 +157,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Resolve before writing anything to disk — if resolution fails,
-	// neither manifest nor pinfile is modified.
+	// Resolve before writing anything to disk
 	progress.Update("Resolving updated dependencies...")
 	forceResolve := make(map[string]bool)
 	for alias, depURL := range m.Dependencies {
 		if targetAlias == "" || alias == targetAlias {
 			forceResolve[depURL] = true
 		}
-	}
-
-	// Load existing pinfile
-	var existingPinfile *pinfile.Pinfile
-	pfPath := filepath.Join(root, "craft.pin.yaml")
-	if pf, err := pinfile.ParseFile(pfPath); err == nil {
-		existingPinfile = pf
 	}
 
 	resolver := resolve.NewResolver(fetcher)
