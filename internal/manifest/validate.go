@@ -50,6 +50,32 @@ func Validate(m *Manifest) []error {
 
 // ValidateName checks if a string is a valid package/skill name.
 // Returns an error describing the issue, or nil if valid.
+// ValidateGlobal validates a global manifest. It is identical to Validate but
+// does not require the skills list to be non-empty.
+func ValidateGlobal(m *Manifest) []error {
+	var errs []error
+
+	if m.SchemaVersion != 1 {
+		errs = append(errs, fmt.Errorf("schema_version: must be 1, got %d", m.SchemaVersion))
+	}
+
+	if m.Name == "" {
+		errs = append(errs, fmt.Errorf("name: required field is missing"))
+	} else if len(m.Name) > 128 {
+		errs = append(errs, fmt.Errorf("name: must be 1–128 characters, got %d", len(m.Name)))
+	} else if !namePattern.MatchString(m.Name) {
+		errs = append(errs, fmt.Errorf("name: %q does not match required format (lowercase alphanumeric with hyphens, e.g. 'my-package')", m.Name))
+	}
+
+	for alias, url := range m.Dependencies {
+		if !depURLPattern.MatchString(url) {
+			errs = append(errs, fmt.Errorf("dependencies[%q]: %q does not match required format (host/org/repo@<ref> where ref is vX.Y.Z, commit SHA, or branch:<name>)", alias, url))
+		}
+	}
+
+	return errs
+}
+
 func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name is required")

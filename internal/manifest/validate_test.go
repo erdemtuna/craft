@@ -161,6 +161,18 @@ func TestValidateMultipleErrors(t *testing.T) {
 	}
 }
 
+func TestValidateGlobal_EmptySkills(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Name:          "global-store",
+		Skills:        []string{},
+	}
+	errs := ValidateGlobal(m)
+	if len(errs) != 0 {
+		t.Errorf("Expected no errors for global manifest with empty skills, got %v", errs)
+	}
+}
+
 func assertContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

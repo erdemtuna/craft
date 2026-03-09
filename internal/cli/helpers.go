@@ -41,6 +41,57 @@ func requireManifestAndPinfile() (*manifest.Manifest, *pinfile.Pinfile, error) {
 	return m, pf, nil
 }
 
+func manifestPathForScope() (manifestPath string, pinfilePath string, err error) {
+	if globalFlag {
+		manifestPath, err = GlobalManifestPath()
+		if err != nil {
+			return "", "", err
+		}
+		pinfilePath, err = GlobalPinfilePath()
+		if err != nil {
+			return "", "", err
+		}
+		return manifestPath, pinfilePath, nil
+	}
+
+	root, err := os.Getwd()
+	if err != nil {
+		return "", "", fmt.Errorf("getting working directory: %w", err)
+	}
+	return filepath.Join(root, "craft.yaml"), filepath.Join(root, "craft.pin.yaml"), nil
+}
+
+func requireManifestAndPinfileForScope() (*manifest.Manifest, *pinfile.Pinfile, error) {
+	mPath, pfPath, err := manifestPathForScope()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	m, err := manifest.ParseFile(mPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if globalFlag {
+				return nil, nil, fmt.Errorf("No global skills installed. Use `craft get` to install skills.")
+			}
+			return nil, nil, fmt.Errorf("craft.yaml not found\n  hint: run `craft init` to create one")
+		}
+		return nil, nil, fmt.Errorf("reading craft.yaml: %w", err)
+	}
+
+	pf, err := pinfile.ParseFile(pfPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if globalFlag {
+				return nil, nil, fmt.Errorf("No global skills installed. Use `craft get` to install skills.")
+			}
+			return nil, nil, fmt.Errorf("craft.pin.yaml not found\n  hint: run `craft install` to resolve and pin dependencies")
+		}
+		return nil, nil, fmt.Errorf("reading craft.pin.yaml: %w", err)
+	}
+
+	return m, pf, nil
+}
+
 // printDryRunSummary prints what would be resolved without making changes.
 // Used by both install --dry-run and update --dry-run.
 func printDryRunSummary(cmd *cobra.Command, result *resolve.ResolveResult, prefix string) {
