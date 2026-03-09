@@ -10,14 +10,14 @@ Thank you for your interest in contributing to craft! This guide covers everythi
 |------|---------|
 | [Go 1.26+](https://go.dev/dl/) | Required |
 | [Task](https://taskfile.dev/) | `go install github.com/go-task/task/v3/cmd/task@latest` |
-| [golangci-lint](https://golangci-lint.run/welcome/install/) | `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` |
-| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | `go install golang.org/x/vuln/cmd/govulncheck@latest` |
+| gcc | `sudo apt-get install gcc` (needed for `-race` tests) |
 
 ### First-Time Setup
 
 ```bash
 git clone https://github.com/erdemtuna/craft.git
 cd craft
+task tools:install    # install golangci-lint and govulncheck
 task build            # verify everything compiles
 task test             # verify tests pass
 task hooks:install    # enable git hooks (recommended)
