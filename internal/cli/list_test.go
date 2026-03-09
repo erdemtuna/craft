@@ -262,7 +262,7 @@ resolved:
 	if alphaIdx == -1 || middleIdx == -1 || zebraIdx == -1 {
 		t.Fatalf("output missing deps, got %q", output)
 	}
-	if !(alphaIdx < middleIdx && middleIdx < zebraIdx) {
+	if alphaIdx >= middleIdx || middleIdx >= zebraIdx {
 		t.Errorf("deps should be sorted alphabetically (alpha < middle < zebra), got %q", output)
 	}
 }

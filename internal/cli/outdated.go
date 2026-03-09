@@ -157,24 +157,24 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	for _, r := range results {
 		if r.err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v\n", sanitize(r.alias), r.err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "error: %s: %v\n", sanitize(r.alias), r.err)
 			hasErrors = true
 			continue
 		}
 		if r.warning != "" {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", sanitize(r.alias), r.warning)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", sanitize(r.alias), r.warning)
 		}
 		if r.skipped {
 			continue
 		}
 		if r.latest != "" {
-			fmt.Fprintf(w, "%s\tv%s → v%s\t(%s)\n", sanitize(r.alias), r.current, r.latest, r.updateType)
+			_, _ = fmt.Fprintf(w, "%s\tv%s → v%s\t(%s)\n", sanitize(r.alias), r.current, r.latest, r.updateType)
 			hasUpdates = true
 		} else {
-			fmt.Fprintf(w, "%s\tv%s\t(up to date)\n", sanitize(r.alias), r.current)
+			_, _ = fmt.Fprintf(w, "%s\tv%s\t(up to date)\n", sanitize(r.alias), r.current)
 		}
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	if hasUpdates || hasErrors {
 		return &silentExitError{code: 1}

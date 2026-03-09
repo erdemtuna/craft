@@ -97,9 +97,9 @@ func runList(cmd *cobra.Command, args []string) error {
 			if len(d.skills) == 1 {
 				skillWord = "skill"
 			}
-			fmt.Fprintf(w, "%s\t%s\t(%d %s)\n", sanitize(d.alias), d.version, len(d.skills), skillWord)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t(%d %s)\n", sanitize(d.alias), d.version, len(d.skills), skillWord)
 		}
-		w.Flush()
+		_ = w.Flush()
 	}
 
 	return nil
