@@ -32,8 +32,7 @@ The dependency is verified by resolving it before updating the manifest.`,
 }
 
 func init() {
-	addCmd.Flags().BoolVar(&addInstall, "install", false, "Run install after adding the dependency")
-	addCmd.Flags().StringVar(&installTarget, "target", "", "Override agent auto-detection with a custom install path (used with --install)")
+	addCmd.Flags().BoolVar(&addInstall, "install", false, "Run install after adding the dependency (vendors to forge/)")
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {
@@ -157,7 +156,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		cmd.Printf("  branch: %s\n", parsed.Ref)
 	}
 
-	// Optionally run install
+	// Optionally run install (vendor to forge/)
 	if addInstall {
 		// Write pinfile
 		pfPath := filepath.Join(root, "craft.pin.yaml")
@@ -165,23 +164,23 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		targetPaths, err := resolveInstallTargets(installTarget)
-		if err != nil {
-			return err
-		}
+		forgePath := filepath.Join(root, "forge")
 
 		skillFiles, err := collectSkillFiles(fetcher, result)
 		if err != nil {
 			return err
 		}
 
-		for _, targetPath := range targetPaths {
-			if err := installlib.Install(targetPath, skillFiles); err != nil {
-				return fmt.Errorf("installation failed: %w", err)
-			}
+		if err := installlib.Install(forgePath, skillFiles); err != nil {
+			return fmt.Errorf("vendoring failed: %w", err)
 		}
 
-		cmd.Printf("Installed %d skill(s) to %s\n", countSkills(result), strings.Join(targetPaths, ", "))
+		// Auto-add forge/ to .gitignore
+		if err := ensureGitignore(root, "forge/"); err != nil {
+			cmd.PrintErrf("warning: could not update .gitignore: %v\n", err)
+		}
+
+		cmd.Printf("Vendored %d skill(s) to forge/\n", countSkills(result))
 	}
 
 	return nil

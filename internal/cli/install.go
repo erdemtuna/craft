@@ -27,9 +27,12 @@ var installDryRun bool
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install skill dependencies",
-	Long:  "Resolve, pin, and install all dependencies declared in craft.yaml.",
-	Args:  cobra.NoArgs,
-	RunE:  runInstall,
+	Long: `Resolve, pin, and install all dependencies declared in craft.yaml.
+
+In project context: vendors dependencies to the forge/ directory (gitignored).
+With --global/-g: re-installs globally tracked dependencies to agent directories.`,
+	Args: cobra.NoArgs,
+	RunE: runInstall,
 }
 
 func init() {
@@ -38,6 +41,105 @@ func init() {
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
+	if globalFlag {
+		return runInstallGlobal(cmd)
+	}
+	return runInstallProject(cmd)
+}
+
+func runInstallGlobal(cmd *cobra.Command) error {
+	manifestPath, err := GlobalManifestPath()
+	if err != nil {
+		return err
+	}
+	pfPath, err := GlobalPinfilePath()
+	if err != nil {
+		return err
+	}
+
+	progress := ui.NewProgress()
+
+	m, err := manifest.ParseFile(manifestPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("no global skills installed\n  hint: use `craft get` to install skills")
+		}
+		return fmt.Errorf("reading global craft.yaml: %w", err)
+	}
+
+	if len(m.Dependencies) == 0 {
+		cmd.Println("No global dependencies to install.")
+		return nil
+	}
+
+	var existingPinfile *pinfile.Pinfile
+	if pf, err := pinfile.ParseFile(pfPath); err == nil {
+		existingPinfile = pf
+	}
+
+	fetcher, err := newFetcher()
+	if err != nil {
+		return err
+	}
+
+	progress.Start("Resolving global dependencies...")
+	resolver := resolve.NewResolver(fetcher)
+	result, err := resolver.Resolve(m, resolve.ResolveOptions{
+		ExistingPinfile: existingPinfile,
+	})
+	if err != nil {
+		progress.Fail("Resolution failed")
+		return fmt.Errorf("resolution failed: %w", err)
+	}
+	progress.Update(fmt.Sprintf("Resolved %d dependency(ies)", len(result.Resolved)))
+
+	if installDryRun {
+		progress.Done("Dry-run complete")
+		printDryRunSummary(cmd, result, "+")
+		return nil
+	}
+
+	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
+		return err
+	}
+
+	targetPaths, err := resolveInstallTargets(installTarget)
+	if err != nil {
+		return err
+	}
+
+	skillFiles, err := collectSkillFiles(fetcher, result)
+	if err != nil {
+		progress.Fail("Fetching failed")
+		return err
+	}
+
+	if err := verifyIntegrity(result, skillFiles); err != nil {
+		progress.Fail("Integrity check failed")
+		return err
+	}
+
+	progress.Update("Installing skills...")
+	for _, targetPath := range targetPaths {
+		if err := installlib.Install(targetPath, skillFiles); err != nil {
+			progress.Fail("Installation failed")
+			return fmt.Errorf("installation failed: %w", err)
+		}
+	}
+
+	skillCount := countSkills(result)
+	msg := fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
+		skillCount, len(result.Resolved), strings.Join(targetPaths, ", "))
+	progress.Done(msg)
+	if !progress.IsTTY() {
+		cmd.Println(msg)
+	}
+
+	printDependencyTree(cmd, m, result)
+	return nil
+}
+
+func runInstallProject(cmd *cobra.Command) error {
 	root, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
@@ -96,11 +198,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine install path(s)
-	targetPaths, err := resolveInstallTargets(installTarget)
-	if err != nil {
-		return err
-	}
+	// Vendor dependencies to forge/ directory
+	forgePath := filepath.Join(root, "forge")
 
 	// Collect skill files for installation
 	skillFiles, err := collectSkillFiles(fetcher, result)
@@ -115,18 +214,21 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Install to each target path
-	progress.Update("Installing skills...")
-	for _, targetPath := range targetPaths {
-		if err := installlib.Install(targetPath, skillFiles); err != nil {
-			progress.Fail("Installation failed")
-			return fmt.Errorf("installation failed: %w", err)
-		}
+	// Install to forge/ directory
+	progress.Update("Vendoring skills to forge/...")
+	if err := installlib.Install(forgePath, skillFiles); err != nil {
+		progress.Fail("Vendoring failed")
+		return fmt.Errorf("vendoring failed: %w", err)
+	}
+
+	// Auto-add forge/ to .gitignore
+	if err := ensureGitignore(root, "forge/"); err != nil {
+		cmd.PrintErrf("warning: could not update .gitignore: %v\n", err)
 	}
 
 	skillCount := countSkills(result)
-	msg := fmt.Sprintf("Installed %d skill(s) from %d package(s) to %s",
-		skillCount, len(result.Resolved), strings.Join(targetPaths, ", "))
+	msg := fmt.Sprintf("Vendored %d skill(s) from %d package(s) to forge/",
+		skillCount, len(result.Resolved))
 	progress.Done(msg)
 	if !progress.IsTTY() {
 		cmd.Println(msg)
@@ -350,4 +452,41 @@ func newFetcher() (fetch.GitFetcher, error) {
 		return nil, err
 	}
 	return fetch.NewGoGitFetcher(cache), nil
+}
+
+// ensureGitignore adds an entry to .gitignore if it's not already present.
+func ensureGitignore(root, entry string) error {
+	gitignorePath := filepath.Join(root, ".gitignore")
+
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("reading .gitignore: %w", err)
+	}
+
+	// Check if entry already exists
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == entry {
+			return nil
+		}
+	}
+
+	// Append entry
+	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("opening .gitignore: %w", err)
+	}
+	defer f.Close()
+
+	// Add newline before entry if file doesn't end with one
+	if len(content) > 0 && content[len(content)-1] != '\n' {
+		if _, err := f.WriteString("\n"); err != nil {
+			return err
+		}
+	}
+	if _, err := f.WriteString(entry + "\n"); err != nil {
+		return err
+	}
+
+	return nil
 }
