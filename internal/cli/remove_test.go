@@ -177,10 +177,13 @@ resolved:
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// shared-skill should be retained (dep-b still provides it)
-	// Note: with namespacing, shared-skill from dep-a lives under github.com/org/a/
-	// and dep-b's shared-skill would live under github.com/org/b/ — they're separate paths.
-	// The orphan check still uses skill NAMES, but the disk paths are namespaced.
+	// With namespacing, shared-skill from dep-a lives under github.com/org/a/
+	// and dep-b's shared-skill lives under github.com/org/b/ — independent paths.
+	// Removing dep-a should clean up ALL of dep-a's skills regardless of name overlap.
+	if _, err := os.Stat(filepath.Join(targetDir, "github.com", "org", "a", "shared-skill")); err == nil {
+		t.Error("dep-a's shared-skill should have been removed (namespaced paths are independent)")
+	}
+
 	// unique-a should be cleaned up since only dep-a provided it
 	if _, err := os.Stat(filepath.Join(targetDir, "github.com", "org", "a", "unique-a")); err == nil {
 		t.Error("unique-a should have been removed")
@@ -251,5 +254,62 @@ func TestAvailableAliases_Empty(t *testing.T) {
 	got := availableAliases(nil)
 	if got != "(none)" {
 		t.Errorf("expected '(none)', got: %s", got)
+	}
+}
+
+func TestCleanEmptyParents(t *testing.T) {
+	root := t.TempDir()
+
+	// Create nested empty dirs: root/a/b/c/
+	nested := filepath.Join(root, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Clean from c upward
+	cleanEmptyParents(root, nested)
+
+	// All empty parents should be removed
+	if _, err := os.Stat(filepath.Join(root, "a")); err == nil {
+		t.Error("expected 'a' to be removed")
+	}
+	// Root itself should remain
+	if _, err := os.Stat(root); err != nil {
+		t.Error("root should still exist")
+	}
+}
+
+func TestCleanEmptyParents_StopsAtNonEmpty(t *testing.T) {
+	root := t.TempDir()
+
+	// Create root/a/b/c/ where a/sibling exists
+	nested := filepath.Join(root, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+	sibling := filepath.Join(root, "a", "sibling")
+	if err := os.MkdirAll(sibling, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cleanEmptyParents(root, nested)
+
+	// b and c removed, but a remains (has sibling)
+	if _, err := os.Stat(filepath.Join(root, "a", "b")); err == nil {
+		t.Error("expected 'b' to be removed")
+	}
+	if _, err := os.Stat(filepath.Join(root, "a")); err != nil {
+		t.Error("'a' should remain (has sibling)")
+	}
+}
+
+func TestCleanEmptyParents_StopsAtRoot(t *testing.T) {
+	root := t.TempDir()
+
+	// dir IS root — should not delete root
+	cleanEmptyParents(root, root)
+
+	if _, err := os.Stat(root); err != nil {
+		t.Error("root should not be deleted")
 	}
 }

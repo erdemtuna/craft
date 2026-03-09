@@ -302,6 +302,34 @@ func TestCollectSkillFiles_SameNameDifferentDeps(t *testing.T) {
 	}
 }
 
+func TestCollectSkillFiles_NonGitHubHost(t *testing.T) {
+	mock := fetch.NewMockFetcher()
+
+	url := "https://gitlab.example.io/my-org/internal-skills.git"
+	mock.Trees[url+":commit1"] = []string{"skills/deploy/SKILL.md"}
+	mock.Files[url+":commit1:skills/deploy/SKILL.md"] = []byte("deploy skill")
+
+	result := &resolve.ResolveResult{
+		Resolved: []resolve.ResolvedDep{
+			{
+				URL:        "gitlab.example.io/my-org/internal-skills@v1.0.0",
+				Commit:     "commit1",
+				Skills:     []string{"deploy"},
+				SkillPaths: []string{"skills/deploy"},
+			},
+		},
+	}
+
+	skills, err := collectSkillFiles(mock, result)
+	if err != nil {
+		t.Fatalf("collectSkillFiles returned error: %v", err)
+	}
+
+	if _, ok := skills["gitlab.example.io/my-org/internal-skills/deploy"]; !ok {
+		t.Fatal("expected non-GitHub host namespace key 'gitlab.example.io/my-org/internal-skills/deploy'")
+	}
+}
+
 func TestCollectSkillFiles_SkillPathsShorterThanSkills(t *testing.T) {
 	mock := fetch.NewMockFetcher()
 	cloneURL := "https://github.com/org/repo.git"

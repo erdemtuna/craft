@@ -305,7 +305,7 @@ func verifyIntegrity(result *resolve.ResolveResult, skills map[string]map[string
 
 		parsed, err := resolve.ParseDepURL(dep.URL)
 		if err != nil {
-			continue
+			return fmt.Errorf("verifying integrity for %s: %w", dep.URL, err)
 		}
 		prefix := parsed.PackageIdentity()
 

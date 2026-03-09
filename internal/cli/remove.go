@@ -77,16 +77,6 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	// Update pinfile
 	if pfErr == nil {
-		// Collect all skills still needed by remaining dependencies
-		remainingSkills := make(map[string]bool)
-		for _, remainingURL := range m.Dependencies {
-			if entry, ok := pf.Resolved[remainingURL]; ok {
-				for _, s := range entry.Skills {
-					remainingSkills[s] = true
-				}
-			}
-		}
-
 		// Remove the dep entry from pinfile
 		delete(pf.Resolved, depURL)
 
@@ -95,13 +85,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		// Find orphaned skills (only in removed dep, not in any remaining dep)
-		var orphaned []string
-		for _, s := range removedSkills {
-			if !remainingSkills[s] {
-				orphaned = append(orphaned, s)
-			}
-		}
+		// With namespaced paths, every skill from the removed dep has a
+		// unique disk path (host/owner/repo/skill), so all are orphaned.
+		orphaned := removedSkills
 
 		// Clean up orphaned skills from install target
 		if len(orphaned) > 0 {
@@ -114,21 +100,18 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 			// Parse dep URL to get namespace prefix (host/owner/repo)
 			parsed, parseErr := resolve.ParseDepURL(depURL)
-			var nsPrefix string
-			if parseErr == nil {
-				nsPrefix = parsed.PackageIdentity()
+			if parseErr != nil {
+				cmd.PrintErrf("  warning: could not parse dep URL %q for cleanup: %v\n", depURL, parseErr)
+				cmd.Printf("  orphaned skills (manual cleanup needed): %s\n", strings.Join(orphaned, ", "))
+				return nil
 			}
+			nsPrefix := parsed.PackageIdentity()
 
 			var cleaned []string
 			for _, skillName := range orphaned {
-				removed := false
+				removedFromAny := false
 				for _, tp := range targetPath {
-					var skillDir string
-					if nsPrefix != "" {
-						skillDir = filepath.Join(tp, nsPrefix, skillName)
-					} else {
-						skillDir = filepath.Join(tp, skillName)
-					}
+					skillDir := filepath.Join(tp, nsPrefix, skillName)
 					// Path traversal protection
 					absSkillDir, err := filepath.Abs(skillDir)
 					if err != nil {
@@ -147,16 +130,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 						if err := os.RemoveAll(skillDir); err != nil {
 							cmd.PrintErrf("  warning: could not remove %s: %v\n", skillDir, err)
 						} else {
-							removed = true
+							removedFromAny = true
+							cleanEmptyParents(tp, filepath.Dir(skillDir))
 						}
 					}
-
-					// Clean up empty parent directories up to target root
-					if removed && nsPrefix != "" {
-						cleanEmptyParents(tp, filepath.Dir(skillDir))
-					}
 				}
-				if removed {
+				if removedFromAny {
 					cleaned = append(cleaned, skillName)
 				}
 			}
