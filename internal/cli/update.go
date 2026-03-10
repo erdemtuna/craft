@@ -210,13 +210,18 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Install
-	progress.Update("Installing skills...")
 	if globalFlag {
+		// Finalize progress line before agent prompt may write multi-line output to stderr.
+		progress.Done("Installing skills...")
+
 		// Global: install to agent directories
 		targetPaths, err := resolveInstallTargets(updateTarget)
 		if err != nil {
 			return err
 		}
+
+		// Restart progress for the install phase.
+		progress.Start("Installing skills...")
 
 		skillFiles, err := collectSkillFiles(fetcher, result)
 		if err != nil {
@@ -238,6 +243,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Project: vendor to forge/
+		progress.Update("Installing skills...")
 		if updateTarget != "" {
 			return fmt.Errorf("--target is not supported for project updates (skills vendor to forge/)\n  hint: use `craft update -g --target %s` for global update to a custom path", updateTarget)
 		}

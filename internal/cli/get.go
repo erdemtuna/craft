@@ -207,12 +207,18 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Finalize progress line before agent prompt may write multi-line output to stderr.
+	progress.Done(fmt.Sprintf("Resolved %d dependency(ies)", len(result.Resolved)))
+
 	// Resolve agent install targets before writing manifest.
 	// This way, if the user cancels the agent prompt, nothing is persisted.
 	targetPaths, err := resolveInstallTargets(getTarget)
 	if err != nil {
 		return err
 	}
+
+	// Restart progress for the install phase.
+	progress.Start("Writing manifest...")
 
 	// Write manifest and pinfile before install (write-ahead).
 	// If install fails, the dep is tracked but not installed — recoverable via `craft install -g`.

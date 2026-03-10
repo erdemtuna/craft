@@ -99,12 +99,18 @@ func runInstallGlobal(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// Finalize progress line before agent prompt may write multi-line output to stderr.
+	progress.Done(fmt.Sprintf("Resolved %d dependency(ies)", len(result.Resolved)))
+
 	// Resolve agent install targets before writing pinfile.
 	// This way, if the user cancels the agent prompt, nothing is modified.
 	targetPaths, err := resolveInstallTargets(installTarget)
 	if err != nil {
 		return err
 	}
+
+	// Restart progress for the install phase.
+	progress.Start("Writing pinfile...")
 
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
 		return err
