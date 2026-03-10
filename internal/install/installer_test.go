@@ -397,3 +397,17 @@ func TestInstallFlatDistinguishesDotFromDash(t *testing.T) {
 		t.Errorf("dash repo content: %q", c2)
 	}
 }
+
+func TestInstallFlatRejectsEmptyKey(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "skills")
+	skills := map[string]map[string][]byte{
+		"": {"SKILL.md": []byte("bad")},
+	}
+	err := InstallFlat(target, skills)
+	if err == nil {
+		t.Fatal("expected error for empty composite key")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("expected 'empty' in error, got: %v", err)
+	}
+}

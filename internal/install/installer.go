@@ -104,7 +104,11 @@ func FlatKey(compositeKey string) string {
 func InstallFlat(target string, skills map[string]map[string][]byte) error {
 	flat := make(map[string]map[string][]byte, len(skills))
 	for k, v := range skills {
-		flat[FlatKey(k)] = v
+		fk := FlatKey(k)
+		if fk == "" {
+			return fmt.Errorf("empty composite key produces empty flat key")
+		}
+		flat[fk] = v
 	}
 	return Install(target, flat)
 }
@@ -118,10 +122,14 @@ func CompositeKey(packageIdentity, skillName string) string {
 
 // QualifySkillNames prefixes each skill name with its package identity to form
 // composite key display names. Used by list and tree commands for global scope.
+// Empty skill names are skipped to avoid trailing-slash display artifacts.
 func QualifySkillNames(packageIdentity string, skills []string) []string {
-	qualified := make([]string, len(skills))
-	for i, s := range skills {
-		qualified[i] = CompositeKey(packageIdentity, s)
+	qualified := make([]string, 0, len(skills))
+	for _, s := range skills {
+		if s == "" {
+			continue
+		}
+		qualified = append(qualified, CompositeKey(packageIdentity, s))
 	}
 	return qualified
 }
