@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/erdemtuna/craft/internal/fetch"
 	"github.com/erdemtuna/craft/internal/integrity"
@@ -13,6 +14,7 @@ import (
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/semver"
 	"github.com/erdemtuna/craft/internal/skill"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -222,14 +224,27 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 		return nil, fmt.Errorf("%s", FormatCycle(cycle))
 	}
 
-	// Phase 4: Resolve commit SHAs, discover skills, compute integrity
+	// Phase 4: Resolve commit SHAs, discover skills, compute integrity.
+	// Each resolveOne call is independent (different dep, read-only opts),
+	// so we parallelize with errgroup for concurrent git operations.
 	var resolved []ResolvedDep
+	var mu sync.Mutex
+	var eg errgroup.Group
 	for _, dep := range selected {
-		full, err := r.resolveOne(dep, opts)
-		if err != nil {
-			return nil, err
-		}
-		resolved = append(resolved, full)
+		dep := dep // capture loop variable
+		eg.Go(func() error {
+			full, err := r.resolveOne(dep, opts)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			resolved = append(resolved, full)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
 
 	// Sort for determinism
