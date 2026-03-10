@@ -43,9 +43,10 @@ func init() {
 func runGet(cmd *cobra.Command, args []string) error {
 	// Parse arguments: optional alias + one or more URLs
 	type depEntry struct {
-		alias  string
-		url    string
-		parsed *resolve.DepURL
+		alias         string
+		url           string
+		parsed        *resolve.DepURL
+		explicitAlias bool // true when user provided the alias explicitly
 	}
 
 	var deps []depEntry
@@ -71,7 +72,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 		}
-		deps = append(deps, depEntry{alias: args[0], url: args[1], parsed: parsed})
+		deps = append(deps, depEntry{alias: args[0], url: args[1], parsed: parsed, explicitAlias: true})
 	} else {
 		// All args are URLs
 		for _, arg := range args {
@@ -126,7 +127,34 @@ func runGet(cmd *cobra.Command, args []string) error {
 			deps[i].url = ""
 			continue
 		}
-		// Different version — prompt
+
+		// Determine if this is the same package (version change) or a
+		// completely different package that happens to share the repo name.
+		existingParsed, existingErr := resolve.ParseDepURL(existing)
+		if existingErr != nil {
+			return fmt.Errorf("existing dependency %q has invalid URL %s: %w", dep.alias, existing, existingErr)
+		}
+		samePackage := existingParsed.PackageIdentity() == dep.parsed.PackageIdentity()
+
+		if !samePackage {
+			if dep.explicitAlias {
+				// User explicitly chose this alias — don't silently rename it
+				return fmt.Errorf("alias %q is already used by a different package (%s)\n  hint: choose a different alias: craft get <alias> %s",
+					dep.alias, existing, dep.url)
+			}
+			// Auto-derived alias — derive a unique one using org-repo
+			// so both packages can coexist without prompting.
+			newAlias := dep.parsed.Org + "-" + dep.parsed.Repo
+			if _, collision := m.Dependencies[newAlias]; collision {
+				return fmt.Errorf("alias %q conflicts with a different package (%s)\n  hint: use 'craft get <alias> %s' to provide a distinct alias",
+					dep.alias, existing, dep.url)
+			}
+			cmd.Printf("Alias %q is used by %s — using %q instead.\n", dep.alias, existing, newAlias)
+			deps[i].alias = newAlias
+			continue
+		}
+
+		// Same package, different version — prompt to update
 		if !isTTY {
 			return fmt.Errorf("%q is already installed at %s (requested %s)\n  hint: use an interactive terminal to confirm updates, or use craft update -g",
 				dep.alias, existing, dep.url)
