@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -24,11 +25,20 @@ type GoGitFetcher struct {
 	cache   *Cache
 	timeout time.Duration
 	offline bool // skip network fetches, use cached data only
+
+	mu        sync.Mutex
+	repoCache map[string]*git.Repository // url → cached repo object
+	treeCache map[string][]string        // "url\x00commit" → cached tree paths
 }
 
 // NewGoGitFetcher creates a GoGitFetcher backed by the given cache.
 func NewGoGitFetcher(cache *Cache) *GoGitFetcher {
-	return &GoGitFetcher{cache: cache, timeout: defaultGitTimeout}
+	return &GoGitFetcher{
+		cache:     cache,
+		timeout:   defaultGitTimeout,
+		repoCache: make(map[string]*git.Repository),
+		treeCache: make(map[string][]string),
+	}
 }
 
 // SetOffline configures the fetcher to skip network operations and use
@@ -104,6 +114,18 @@ func (f *GoGitFetcher) ListTags(url string) ([]string, error) {
 
 // ListTree returns all file paths in the repository tree at the given commit.
 func (f *GoGitFetcher) ListTree(url, commitSHA string) ([]string, error) {
+	// Check tree cache first
+	cacheKey := url + "\x00" + commitSHA
+	f.mu.Lock()
+	if cached, ok := f.treeCache[cacheKey]; ok {
+		f.mu.Unlock()
+		// Return a copy to prevent callers from mutating the cache.
+		result := make([]string, len(cached))
+		copy(result, cached)
+		return result, nil
+	}
+	f.mu.Unlock()
+
 	repo, err := f.ensureRepo(url)
 	if err != nil {
 		return nil, WrapAuthError(fmt.Errorf("listing tree from %s: %w", url, err), url)
@@ -127,6 +149,11 @@ func (f *GoGitFetcher) ListTree(url, commitSHA string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("walking tree: %w", err)
 	}
+
+	// Cache the result
+	f.mu.Lock()
+	f.treeCache[cacheKey] = paths
+	f.mu.Unlock()
 
 	return paths, nil
 }
@@ -178,11 +205,37 @@ func (f *GoGitFetcher) ReadFiles(url, commitSHA string, paths []string) (map[str
 
 // ensureRepo returns a go-git Repository for the given URL, using the cache.
 // On cache miss, clones the repo as a bare clone. On cache hit, fetches
-// latest changes.
+// latest changes. Repo objects are cached in memory so subsequent calls
+// for the same URL skip locking, opening, and fetching.
 func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 	if f.cache == nil {
-		return f.cloneToMemory(url)
+		// Still use repo cache for memory clones to deduplicate
+		// concurrent requests for the same URL.
+		f.mu.Lock()
+		if repo, ok := f.repoCache[url]; ok {
+			f.mu.Unlock()
+			return repo, nil
+		}
+		f.mu.Unlock()
+
+		repo, err := f.cloneToMemory(url)
+		if err != nil {
+			return nil, err
+		}
+
+		f.mu.Lock()
+		f.repoCache[url] = repo
+		f.mu.Unlock()
+		return repo, nil
 	}
+
+	// Fast path: return cached repo object
+	f.mu.Lock()
+	if repo, ok := f.repoCache[url]; ok {
+		f.mu.Unlock()
+		return repo, nil
+	}
+	f.mu.Unlock()
 
 	repoPath := f.cache.RepoPath(url)
 
@@ -200,43 +253,59 @@ func (f *GoGitFetcher) ensureRepo(url string) (*git.Repository, error) {
 		}
 	}()
 
+	// Double-check after acquiring lock (another goroutine may have populated)
+	f.mu.Lock()
+	if repo, ok := f.repoCache[url]; ok {
+		f.mu.Unlock()
+		return repo, nil
+	}
+	f.mu.Unlock()
+
+	var repo *git.Repository
 	if f.cache.Has(url) {
 		// Cache hit — open and fetch
-		repo, err := git.PlainOpen(repoPath)
+		repo, err = git.PlainOpen(repoPath)
 		if err != nil {
 			// Corrupted cache — remove and re-clone
 			_ = os.RemoveAll(repoPath)
-			return f.cloneToCache(url, repoPath)
-		}
-
-		if f.offline {
-			return repo, nil
-		}
-
-		// Fetch latest (best-effort — if offline, use existing)
-		auth := Auth(url)
-		ctx, cancel := context.WithTimeout(context.Background(), f.timeout)
-		defer cancel()
-		err = repo.FetchContext(ctx, &git.FetchOptions{
-			RemoteURL: url,
-			Auth:      auth,
-			Tags:      git.AllTags,
-			Force:     true,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			// Auth failures should propagate — stale cache with bad credentials
-			// likely means the user's token expired, not a network issue
-			if isAuthError(err) {
-				return nil, WrapAuthError(fmt.Errorf("fetching %s: %w", url, err), url)
+			repo, err = f.cloneToCache(url, repoPath)
+			if err != nil {
+				return nil, err
 			}
-			// Network/timeout failures — use existing cached data (offline fallback)
+		} else if !f.offline {
+			// Fetch latest (best-effort — if offline, use existing)
+			auth := Auth(url)
+			ctx, cancel := context.WithTimeout(context.Background(), f.timeout)
+			defer cancel()
+			fetchErr := repo.FetchContext(ctx, &git.FetchOptions{
+				RemoteURL: url,
+				Auth:      auth,
+				Tags:      git.AllTags,
+				Force:     true,
+			})
+			if fetchErr != nil && fetchErr != git.NoErrAlreadyUpToDate {
+				// Auth failures should propagate — stale cache with bad credentials
+				// likely means the user's token expired, not a network issue
+				if isAuthError(fetchErr) {
+					return nil, WrapAuthError(fmt.Errorf("fetching %s: %w", url, fetchErr), url)
+				}
+				// Network/timeout failures — use existing cached data (offline fallback)
+			}
 		}
-
-		return repo, nil
+	} else {
+		// Cache miss — clone
+		repo, err = f.cloneToCache(url, repoPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Cache miss — clone
-	return f.cloneToCache(url, repoPath)
+	// Cache the repo object for subsequent calls
+	f.mu.Lock()
+	f.repoCache[url] = repo
+	f.mu.Unlock()
+
+	return repo, nil
 }
 
 // cloneToCache performs an atomic bare clone to the cache directory.
