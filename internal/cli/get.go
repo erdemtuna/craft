@@ -207,6 +207,13 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Resolve agent install targets before writing manifest.
+	// This way, if the user cancels the agent prompt, nothing is persisted.
+	targetPaths, err := resolveInstallTargets(getTarget)
+	if err != nil {
+		return err
+	}
+
 	// Write manifest and pinfile before install (write-ahead).
 	// If install fails, the dep is tracked but not installed — recoverable via `craft install -g`.
 	if err := writeManifestAtomic(manifestPath, m); err != nil {
@@ -214,12 +221,6 @@ func runGet(cmd *cobra.Command, args []string) error {
 	}
 	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
 		return err
-	}
-
-	// Resolve agent install targets
-	targetPaths, err := resolveInstallTargets(getTarget)
-	if err != nil {
-		return fmt.Errorf("%w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 	}
 
 	// Collect skill files

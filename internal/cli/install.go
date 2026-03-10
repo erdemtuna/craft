@@ -99,12 +99,14 @@ func runInstallGlobal(cmd *cobra.Command) error {
 		return nil
 	}
 
-	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
+	// Resolve agent install targets before writing pinfile.
+	// This way, if the user cancels the agent prompt, nothing is modified.
+	targetPaths, err := resolveInstallTargets(installTarget)
+	if err != nil {
 		return err
 	}
 
-	targetPaths, err := resolveInstallTargets(installTarget)
-	if err != nil {
+	if err := writePinfileAtomic(pfPath, result.Pinfile); err != nil {
 		return err
 	}
 
@@ -293,33 +295,39 @@ func promptAgentChoice(agents []agent.DetectResult, in io.Reader, errOut io.Writ
 	for i, a := range agents {
 		_, _ = fmt.Fprintf(errOut, "  %d) %s (%s)\n", i+1, a.Agent.String(), a.InstallPath)
 	}
-	_, _ = fmt.Fprintf(errOut, "  %d) Both\n", len(agents)+1)
-	_, _ = fmt.Fprintf(errOut, "\nChoice [1-%d]: ", len(agents)+1)
+	bothChoice := fmt.Sprintf("%d", len(agents)+1)
+	_, _ = fmt.Fprintf(errOut, "  %s) Both\n", bothChoice)
 
 	scanner := bufio.NewScanner(in)
-	if !scanner.Scan() {
-		return nil, fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
-	}
+	maxAttempts := 3
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		_, _ = fmt.Fprintf(errOut, "\nChoice [1-%s]: ", bothChoice)
 
-	choice := strings.TrimSpace(scanner.Text())
-
-	// "Both" selection — return all agent paths
-	bothChoice := fmt.Sprintf("%d", len(agents)+1)
-	if choice == bothChoice {
-		paths := make([]string, len(agents))
-		for i, a := range agents {
-			paths[i] = a.InstallPath
+		if !scanner.Scan() {
+			return nil, fmt.Errorf("no input received\n  hint: use --target <path> for non-interactive use")
 		}
-		return paths, nil
+
+		choice := strings.TrimSpace(scanner.Text())
+
+		// "Both" selection
+		if choice == bothChoice {
+			paths := make([]string, len(agents))
+			for i, a := range agents {
+				paths[i] = a.InstallPath
+			}
+			return paths, nil
+		}
+
+		// Parse numeric choice
+		var idx int
+		if _, err := fmt.Sscanf(choice, "%d", &idx); err == nil && idx >= 1 && idx <= len(agents) {
+			return []string{agents[idx-1].InstallPath}, nil
+		}
+
+		_, _ = fmt.Fprintf(errOut, "  invalid choice %q — enter a number from 1 to %s\n", choice, bothChoice)
 	}
 
-	// Parse numeric choice
-	var idx int
-	if _, err := fmt.Sscanf(choice, "%d", &idx); err != nil || idx < 1 || idx > len(agents) {
-		return nil, fmt.Errorf("invalid choice %q\n  hint: enter a number from 1 to %d", choice, len(agents)+1)
-	}
-
-	return []string{agents[idx-1].InstallPath}, nil
+	return nil, fmt.Errorf("no valid choice after %d attempts\n  hint: use --target <path> for non-interactive use", maxAttempts)
 }
 
 // printDependencyTree prints a formatted dependency tree to stderr.
