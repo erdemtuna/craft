@@ -362,3 +362,70 @@ func TestCleanEmptyParents_StopsAtRoot(t *testing.T) {
 		t.Error("root should not be deleted")
 	}
 }
+
+func TestRunRemoveGlobal_FlatCleanup(t *testing.T) {
+	// Set up isolated HOME for global manifest/pinfile
+	fakeHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", fakeHome)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	// Reset globalFlag after test (cobra persistent flags leak between tests)
+	defer func() { globalFlag = false }()
+
+	craftDir := filepath.Join(fakeHome, ".craft")
+	_ = os.MkdirAll(craftDir, 0755)
+
+	manifestContent := `schema_version: 1
+name: global-pkg
+dependencies:
+  my-dep: github.com/org/repo@v1.0.0
+`
+	_ = os.WriteFile(filepath.Join(craftDir, "craft.yaml"), []byte(manifestContent), 0644)
+
+	pinContent := `pin_version: 1
+resolved:
+  github.com/org/repo@v1.0.0:
+    commit: abc123
+    integrity: sha256-test
+    skills:
+      - my-skill
+`
+	_ = os.WriteFile(filepath.Join(craftDir, "craft.pin.yaml"), []byte(pinContent), 0644)
+
+	// Create flat skill directory (as InstallFlat would produce)
+	targetDir := filepath.Join(fakeHome, "agent-skills")
+	flatSkillDir := filepath.Join(targetDir, "github.com--org--repo--my-skill")
+	_ = os.MkdirAll(flatSkillDir, 0755)
+	_ = os.WriteFile(filepath.Join(flatSkillDir, "SKILL.md"), []byte("skill"), 0644)
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(&buf)
+	rootCmd.SetArgs([]string{"remove", "-g", "--target", targetDir, "my-dep"})
+	err := rootCmd.Execute()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v\noutput: %s", err, buf.String())
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Removed") {
+		t.Errorf("expected 'Removed' message, got: %s", output)
+	}
+
+	// Verify flat skill directory was removed
+	if _, err := os.Stat(flatSkillDir); err == nil {
+		t.Error("flat skill directory should have been removed")
+	}
+
+	// Verify no nested parent directories were created
+	if _, err := os.Stat(filepath.Join(targetDir, "github.com")); err == nil {
+		t.Error("no nested parent directories should exist")
+	}
+
+	// Verify target dir itself still exists
+	if _, err := os.Stat(targetDir); err != nil {
+		t.Error("target directory should still exist")
+	}
+}

@@ -88,32 +88,40 @@ func Install(target string, skills map[string]map[string][]byte) error {
 }
 
 // FlatKey converts a composite skill key (host/owner/repo/skill) into a flat
-// directory name suitable for agent skill discovery. Slashes become "--" and
-// dots become "-". Casing is preserved.
+// directory name suitable for agent skill discovery. Slashes become "--".
+// Dots and casing are preserved. The encoding is injective — distinct
+// composite keys always produce distinct flat keys.
 //
-// Note: This encoding is lossy — composite keys differing only in dots vs
-// hyphens (e.g., "my.repo" vs "my-repo") produce the same flat key.
-// InstallFlat detects such collisions and returns an error.
-//
-// Example: "github.com/org/repo/my-skill" → "github-com--org--repo--my-skill"
+// Example: "github.com/org/repo/my-skill" → "github.com--org--repo--my-skill"
 func FlatKey(compositeKey string) string {
-	flat := strings.ReplaceAll(compositeKey, ".", "-")
-	flat = strings.ReplaceAll(flat, "/", "--")
-	return flat
+	return strings.ReplaceAll(compositeKey, "/", "--")
 }
 
 // InstallFlat installs skills using flat directory names so that each skill
 // is a direct child of the target directory. This is used for global installs
 // where AI agents need to discover skills by scanning immediate children.
 // It transforms composite keys via FlatKey then delegates to Install.
-// Returns an error if two distinct composite keys produce the same flat key.
 func InstallFlat(target string, skills map[string]map[string][]byte) error {
 	flat := make(map[string]map[string][]byte, len(skills))
 	for k, v := range skills {
 		flat[FlatKey(k)] = v
 	}
-	if len(flat) != len(skills) {
-		return fmt.Errorf("flat key collision: %d skills mapped to %d unique keys; composite keys with dots vs hyphens in the same position will collide", len(skills), len(flat))
-	}
 	return Install(target, flat)
+}
+
+// CompositeKey builds a composite skill key from a package identity and skill
+// name. This is the canonical way to construct the key used by both Install
+// and remove operations, ensuring format consistency.
+func CompositeKey(packageIdentity, skillName string) string {
+	return packageIdentity + "/" + skillName
+}
+
+// QualifySkillNames prefixes each skill name with its package identity to form
+// composite key display names. Used by list and tree commands for global scope.
+func QualifySkillNames(packageIdentity string, skills []string) []string {
+	qualified := make([]string, len(skills))
+	for i, s := range skills {
+		qualified[i] = CompositeKey(packageIdentity, s)
+	}
+	return qualified
 }

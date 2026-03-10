@@ -141,7 +141,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				for _, tp := range targetPath {
 					var skillDir string
 					if globalFlag {
-						skillDir = filepath.Join(tp, installlib.FlatKey(nsPrefix+"/"+skillName))
+						skillDir = filepath.Join(tp, installlib.FlatKey(installlib.CompositeKey(nsPrefix, skillName)))
 					} else {
 						skillDir = filepath.Join(tp, nsPrefix, skillName)
 					}

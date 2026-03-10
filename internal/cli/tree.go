@@ -3,6 +3,7 @@ package cli
 import (
 	"strings"
 
+	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/erdemtuna/craft/internal/ui"
 	"github.com/spf13/cobra"
@@ -59,10 +60,7 @@ func runTree(cmd *cobra.Command, args []string) error {
 
 		skills := entry.Skills
 		if globalFlag {
-			skills = make([]string, len(entry.Skills))
-			for i, s := range entry.Skills {
-				skills[i] = parsed.PackageIdentity() + "/" + s
-			}
+			skills = installlib.QualifySkillNames(parsed.PackageIdentity(), entry.Skills)
 		}
 
 		deps = append(deps, ui.DepNode{

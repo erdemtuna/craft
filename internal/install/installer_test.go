@@ -215,11 +215,11 @@ func TestFlatKey(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"standard composite key", "github.com/org/repo/my-skill", "github-com--org--repo--my-skill"},
-		{"real PAW key", "github.com/lossyrob/phased-agent-workflow/paw-implement", "github-com--lossyrob--phased-agent-workflow--paw-implement"},
-		{"anthropic skills", "github.com/anthropics/skills/skill-creator", "github-com--anthropics--skills--skill-creator"},
+		{"standard composite key", "github.com/org/repo/my-skill", "github.com--org--repo--my-skill"},
+		{"real PAW key", "github.com/lossyrob/phased-agent-workflow/paw-implement", "github.com--lossyrob--phased-agent-workflow--paw-implement"},
+		{"anthropic skills", "github.com/anthropics/skills/skill-creator", "github.com--anthropics--skills--skill-creator"},
 		{"simple skill name", "simple-skill", "simple-skill"},
-		{"custom host with dots", "host.name/owner/repo/skill", "host-name--owner--repo--skill"},
+		{"custom host with dots", "host.name/owner/repo/skill", "host.name--owner--repo--skill"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -237,11 +237,11 @@ func TestFlatKeyEdgeCases(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"dots in org", "github.com/my.org/repo/skill", "github-com--my-org--repo--skill"},
-		{"dots in repo", "github.com/org/my.repo/skill", "github-com--org--my-repo--skill"},
-		{"dots in skill", "github.com/org/repo/my.skill", "github-com--org--repo--my-skill"},
-		{"dots everywhere", "git.hub.com/my.org/my.repo/my.skill", "git-hub-com--my-org--my-repo--my-skill"},
-		{"mixed casing", "GitHub.com/MyOrg/Repo/Skill", "GitHub-com--MyOrg--Repo--Skill"},
+		{"dots in org", "github.com/my.org/repo/skill", "github.com--my.org--repo--skill"},
+		{"dots in repo", "github.com/org/my.repo/skill", "github.com--org--my.repo--skill"},
+		{"dots in skill", "github.com/org/repo/my.skill", "github.com--org--repo--my.skill"},
+		{"dots everywhere", "git.hub.com/my.org/my.repo/my.skill", "git.hub.com--my.org--my.repo--my.skill"},
+		{"mixed casing", "GitHub.com/MyOrg/Repo/Skill", "GitHub.com--MyOrg--Repo--Skill"},
 		{"many components", "a/b/c/d/e", "a--b--c--d--e"},
 		{"no slashes no dots", "plain-name", "plain-name"},
 	}
@@ -268,7 +268,7 @@ func TestInstallFlatCreatesStructure(t *testing.T) {
 	}
 
 	// Should be flat, not nested
-	flatDir := filepath.Join(target, "github-com--org--repo--my-skill")
+	flatDir := filepath.Join(target, "github.com--org--repo--my-skill")
 	content, err := os.ReadFile(filepath.Join(flatDir, "SKILL.md"))
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
@@ -312,11 +312,11 @@ func TestInstallFlatMultiPackage(t *testing.T) {
 	for _, e := range entries {
 		names[e.Name()] = true
 	}
-	if !names["github-com--org--repo--skill-a"] {
-		t.Error("missing github-com--org--repo--skill-a")
+	if !names["github.com--org--repo--skill-a"] {
+		t.Error("missing github.com--org--repo--skill-a")
 	}
-	if !names["github-com--other--tools--skill-b"] {
-		t.Error("missing github-com--other--tools--skill-b")
+	if !names["github.com--other--tools--skill-b"] {
+		t.Error("missing github.com--other--tools--skill-b")
 	}
 }
 
@@ -336,7 +336,7 @@ func TestInstallFlatSameName(t *testing.T) {
 	}
 
 	// Same leaf name, different flat keys — no collision
-	c1, err := os.ReadFile(filepath.Join(target, "github-com--org--repo--my-skill", "SKILL.md"))
+	c1, err := os.ReadFile(filepath.Join(target, "github.com--org--repo--my-skill", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("ReadFile org: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestInstallFlatSameName(t *testing.T) {
 		t.Errorf("org content: %q", c1)
 	}
 
-	c2, err := os.ReadFile(filepath.Join(target, "github-com--other--tools--my-skill", "SKILL.md"))
+	c2, err := os.ReadFile(filepath.Join(target, "github.com--other--tools--my-skill", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("ReadFile other: %v", err)
 	}
@@ -370,25 +370,30 @@ func TestInstallFlatOverwrites(t *testing.T) {
 		t.Fatalf("second InstallFlat: %v", err)
 	}
 
-	content, _ := os.ReadFile(filepath.Join(target, "github-com--org--repo--my-skill", "SKILL.md"))
+	content, _ := os.ReadFile(filepath.Join(target, "github.com--org--repo--my-skill", "SKILL.md"))
 	if string(content) != "v2" {
 		t.Errorf("expected v2, got %q", content)
 	}
 }
 
-func TestInstallFlatCollisionDetection(t *testing.T) {
+func TestInstallFlatDistinguishesDotFromDash(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "skills")
-	// These two keys collide under FlatKey: dots and hyphens map to the same char
+	// Dots and hyphens are distinct — no collision with injective encoding
 	skills := map[string]map[string][]byte{
 		"github.com/org/my.repo/skill": {"SKILL.md": []byte("dot")},
 		"github.com/org/my-repo/skill": {"SKILL.md": []byte("dash")},
 	}
 
-	err := InstallFlat(target, skills)
-	if err == nil {
-		t.Fatal("expected collision error, got nil")
+	if err := InstallFlat(target, skills); err != nil {
+		t.Fatalf("InstallFlat error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "flat key collision") {
-		t.Errorf("unexpected error message: %v", err)
+
+	c1, _ := os.ReadFile(filepath.Join(target, "github.com--org--my.repo--skill", "SKILL.md"))
+	if string(c1) != "dot" {
+		t.Errorf("dot repo content: %q", c1)
+	}
+	c2, _ := os.ReadFile(filepath.Join(target, "github.com--org--my-repo--skill", "SKILL.md"))
+	if string(c2) != "dash" {
+		t.Errorf("dash repo content: %q", c2)
 	}
 }

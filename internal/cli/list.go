@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -86,10 +87,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			if len(d.skills) > 0 {
 				displaySkills := d.skills
 				if globalFlag {
-					displaySkills = make([]string, len(d.skills))
-					for i, s := range d.skills {
-						displaySkills[i] = d.url + "/" + s
-					}
+					displaySkills = installlib.QualifySkillNames(d.url, d.skills)
 				}
 				cmd.Printf("  skills: %s\n", sanitize(strings.Join(displaySkills, ", ")))
 			} else {
