@@ -121,7 +121,7 @@ func runInstallGlobal(cmd *cobra.Command) error {
 
 	progress.Update("Installing skills...")
 	for _, targetPath := range targetPaths {
-		if err := installlib.Install(targetPath, skillFiles); err != nil {
+		if err := installlib.InstallFlat(targetPath, skillFiles); err != nil {
 			progress.Fail("Installation failed")
 			return fmt.Errorf("installation failed: %w", err)
 		}

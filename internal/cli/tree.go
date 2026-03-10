@@ -3,6 +3,7 @@ package cli
 import (
 	"strings"
 
+	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/erdemtuna/craft/internal/ui"
 	"github.com/spf13/cobra"
@@ -30,7 +31,7 @@ func runTree(cmd *cobra.Command, args []string) error {
 	var localSkills []string
 	for _, s := range m.Skills {
 		parts := strings.Split(strings.TrimRight(s, "/"), "/")
-		localSkills = append(localSkills, parts[len(parts)-1])
+		localSkills = append(localSkills, sanitize(parts[len(parts)-1]))
 	}
 
 	// Build alias lookup from manifest
@@ -57,10 +58,21 @@ func runTree(cmd *cobra.Command, args []string) error {
 			alias = parsed.Repo
 		}
 
+		skills := entry.Skills
+		if globalFlag {
+			skills = installlib.QualifySkillNames(parsed.PackageIdentity(), entry.Skills)
+		}
+
+		// Sanitize all user-derived strings before rendering
+		sanitizedSkills := make([]string, len(skills))
+		for i, s := range skills {
+			sanitizedSkills[i] = sanitize(s)
+		}
+
 		deps = append(deps, ui.DepNode{
-			Alias:  alias,
-			URL:    key,
-			Skills: entry.Skills,
+			Alias:  sanitize(alias),
+			URL:    sanitize(key),
+			Skills: sanitizedSkills,
 		})
 	}
 

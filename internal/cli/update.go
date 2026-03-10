@@ -224,7 +224,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 
 		for _, targetPath := range targetPaths {
-			if err := installlib.Install(targetPath, skillFiles); err != nil {
+			if err := installlib.InstallFlat(targetPath, skillFiles); err != nil {
 				progress.Fail("Installation failed")
 				return fmt.Errorf("installation failed: %w", err)
 			}

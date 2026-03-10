@@ -86,3 +86,50 @@ func Install(target string, skills map[string]map[string][]byte) error {
 
 	return nil
 }
+
+// FlatKey converts a composite skill key (host/owner/repo/skill) into a flat
+// directory name suitable for agent skill discovery. Slashes become "--".
+// Dots and casing are preserved. The encoding is injective — distinct
+// composite keys always produce distinct flat keys.
+//
+// Example: "github.com/org/repo/my-skill" → "github.com--org--repo--my-skill"
+func FlatKey(compositeKey string) string {
+	return strings.ReplaceAll(compositeKey, "/", "--")
+}
+
+// InstallFlat installs skills using flat directory names so that each skill
+// is a direct child of the target directory. This is used for global installs
+// where AI agents need to discover skills by scanning immediate children.
+// It transforms composite keys via FlatKey then delegates to Install.
+func InstallFlat(target string, skills map[string]map[string][]byte) error {
+	flat := make(map[string]map[string][]byte, len(skills))
+	for k, v := range skills {
+		fk := FlatKey(k)
+		if fk == "" {
+			return fmt.Errorf("empty composite key produces empty flat key")
+		}
+		flat[fk] = v
+	}
+	return Install(target, flat)
+}
+
+// CompositeKey builds a composite skill key from a package identity and skill
+// name. This is the canonical way to construct the key used by both Install
+// and remove operations, ensuring format consistency.
+func CompositeKey(packageIdentity, skillName string) string {
+	return packageIdentity + "/" + skillName
+}
+
+// QualifySkillNames prefixes each skill name with its package identity to form
+// composite key display names. Used by list and tree commands for global scope.
+// Empty skill names are skipped to avoid trailing-slash display artifacts.
+func QualifySkillNames(packageIdentity string, skills []string) []string {
+	qualified := make([]string, 0, len(skills))
+	for _, s := range skills {
+		if s == "" {
+			continue
+		}
+		qualified = append(qualified, CompositeKey(packageIdentity, s))
+	}
+	return qualified
+}

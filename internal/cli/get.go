@@ -238,7 +238,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 	// Install to agent directories
 	progress.Update("Installing skills...")
 	for _, targetPath := range targetPaths {
-		if err := installlib.Install(targetPath, skillFiles); err != nil {
+		if err := installlib.InstallFlat(targetPath, skillFiles); err != nil {
 			progress.Fail("Installation failed")
 			return fmt.Errorf("installation failed: %w\n  note: dependencies were added to the global manifest but installation could not complete\n  hint: run 'craft install -g' to retry, or 'craft remove -g <alias>' to undo", err)
 		}

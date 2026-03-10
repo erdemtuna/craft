@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
@@ -138,7 +139,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			for _, skillName := range orphaned {
 				removedFromAny := false
 				for _, tp := range targetPath {
-					skillDir := filepath.Join(tp, nsPrefix, skillName)
+					var skillDir string
+					if globalFlag {
+						skillDir = filepath.Join(tp, installlib.FlatKey(installlib.CompositeKey(nsPrefix, skillName)))
+					} else {
+						skillDir = filepath.Join(tp, nsPrefix, skillName)
+					}
 					// Path traversal protection
 					absSkillDir, err := filepath.Abs(skillDir)
 					if err != nil {
@@ -158,7 +164,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 							cmd.PrintErrf("  warning: could not remove %s: %v\n", skillDir, err)
 						} else {
 							removedFromAny = true
-							cleanEmptyParents(tp, filepath.Dir(skillDir))
+							if !globalFlag {
+								cleanEmptyParents(tp, filepath.Dir(skillDir))
+							}
 						}
 					}
 				}
