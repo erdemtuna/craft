@@ -212,7 +212,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Install
 	if globalFlag {
 		// Finalize progress line before agent prompt may write multi-line output to stderr.
-		progress.Done("Installing skills...")
+		progress.Done("Resolved dependencies")
 
 		// Global: install to agent directories
 		targetPaths, err := resolveInstallTargets(updateTarget)
