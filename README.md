@@ -373,7 +373,7 @@ When both agents are detected, craft prompts you to choose. Use `--target <path>
     └── SKILL.md
 ```
 
-The flat directory name is derived from the composite key: slashes become `--`, dots become `-` (e.g., `github.com/acme/company-standards/coding-style` → `github-com--acme--company-standards--coding-style`).
+The flat directory name is derived from the composite key: slashes become `--`, dots become `-` (e.g., `github.com/acme/company-standards/coding-style` → `github-com--acme--company-standards--coding-style`). Note: composite keys differing only in dots vs hyphens (e.g., `my.repo` vs `my-repo`) would collide — craft detects this and returns an error.
 
 **Project installs** (`craft install`) vendor to `forge/` in the project root (gitignored), using nested composite-key paths.
 

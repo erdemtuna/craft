@@ -91,6 +91,10 @@ func Install(target string, skills map[string]map[string][]byte) error {
 // directory name suitable for agent skill discovery. Slashes become "--" and
 // dots become "-". Casing is preserved.
 //
+// Note: This encoding is lossy — composite keys differing only in dots vs
+// hyphens (e.g., "my.repo" vs "my-repo") produce the same flat key.
+// InstallFlat detects such collisions and returns an error.
+//
 // Example: "github.com/org/repo/my-skill" → "github-com--org--repo--my-skill"
 func FlatKey(compositeKey string) string {
 	flat := strings.ReplaceAll(compositeKey, ".", "-")
@@ -102,10 +106,14 @@ func FlatKey(compositeKey string) string {
 // is a direct child of the target directory. This is used for global installs
 // where AI agents need to discover skills by scanning immediate children.
 // It transforms composite keys via FlatKey then delegates to Install.
+// Returns an error if two distinct composite keys produce the same flat key.
 func InstallFlat(target string, skills map[string]map[string][]byte) error {
 	flat := make(map[string]map[string][]byte, len(skills))
 	for k, v := range skills {
 		flat[FlatKey(k)] = v
+	}
+	if len(flat) != len(skills) {
+		return fmt.Errorf("flat key collision: %d skills mapped to %d unique keys; composite keys with dots vs hyphens in the same position will collide", len(skills), len(flat))
 	}
 	return Install(target, flat)
 }

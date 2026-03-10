@@ -211,20 +211,23 @@ func TestInstallCompositeKeys(t *testing.T) {
 
 func TestFlatKey(t *testing.T) {
 	tests := []struct {
+		name  string
 		input string
 		want  string
 	}{
-		{"github.com/org/repo/my-skill", "github-com--org--repo--my-skill"},
-		{"github.com/lossyrob/phased-agent-workflow/paw-implement", "github-com--lossyrob--phased-agent-workflow--paw-implement"},
-		{"github.com/anthropics/skills/skill-creator", "github-com--anthropics--skills--skill-creator"},
-		{"simple-skill", "simple-skill"},
-		{"host.name/owner/repo/skill", "host-name--owner--repo--skill"},
+		{"standard composite key", "github.com/org/repo/my-skill", "github-com--org--repo--my-skill"},
+		{"real PAW key", "github.com/lossyrob/phased-agent-workflow/paw-implement", "github-com--lossyrob--phased-agent-workflow--paw-implement"},
+		{"anthropic skills", "github.com/anthropics/skills/skill-creator", "github-com--anthropics--skills--skill-creator"},
+		{"simple skill name", "simple-skill", "simple-skill"},
+		{"custom host with dots", "host.name/owner/repo/skill", "host-name--owner--repo--skill"},
 	}
 	for _, tt := range tests {
-		got := FlatKey(tt.input)
-		if got != tt.want {
-			t.Errorf("FlatKey(%q) = %q, want %q", tt.input, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got := FlatKey(tt.input)
+			if got != tt.want {
+				t.Errorf("FlatKey(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -370,5 +373,22 @@ func TestInstallFlatOverwrites(t *testing.T) {
 	content, _ := os.ReadFile(filepath.Join(target, "github-com--org--repo--my-skill", "SKILL.md"))
 	if string(content) != "v2" {
 		t.Errorf("expected v2, got %q", content)
+	}
+}
+
+func TestInstallFlatCollisionDetection(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "skills")
+	// These two keys collide under FlatKey: dots and hyphens map to the same char
+	skills := map[string]map[string][]byte{
+		"github.com/org/my.repo/skill": {"SKILL.md": []byte("dot")},
+		"github.com/org/my-repo/skill": {"SKILL.md": []byte("dash")},
+	}
+
+	err := InstallFlat(target, skills)
+	if err == nil {
+		t.Fatal("expected collision error, got nil")
+	}
+	if !strings.Contains(err.Error(), "flat key collision") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
