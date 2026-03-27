@@ -194,6 +194,37 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolution failed: %w", err)
 	}
 
+	// Notify about newly discovered skills in selectively-installed deps.
+	for _, dep := range result.Resolved {
+		if len(dep.Select) == 0 {
+			continue
+		}
+		installed := make(map[string]bool, len(dep.SkillPaths))
+		for _, p := range dep.SkillPaths {
+			installed[p] = true
+		}
+		var newSkills []string
+		for _, p := range dep.AllSkillPaths {
+			if !installed[p] {
+				newSkills = append(newSkills, filepath.Base(p))
+			}
+		}
+		if len(newSkills) > 0 {
+			alias := dep.Alias
+			if alias == "" {
+				for a, ds := range m.Dependencies {
+					if ds.URL == dep.URL {
+						alias = a
+						break
+					}
+				}
+			}
+			if alias != "" {
+				cmd.Printf("ℹ  New skills available in %s: %s\n   Use 'craft add' to include them.\n", alias, strings.Join(newSkills, ", "))
+			}
+		}
+	}
+
 	// Dry-run: show what would change and exit
 	if updateDryRun {
 		progress.Done("Dry-run complete")
