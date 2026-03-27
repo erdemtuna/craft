@@ -54,6 +54,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 	}
 
+	// Strip #fragment from URL — subpath is handled via Select
+	depURL = parsed.PackageIdentity() + "@" + parsed.RefString()
+
 	// Warn about non-tagged dependencies
 	if parsed.RefType != resolve.RefTypeTag {
 		cmd.PrintErrln("⚠ Non-tagged dependency: " + depURL)
@@ -85,26 +88,33 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check for existing dependency
+	addAll, _ := cmd.Flags().GetBool("all")
+	isInteractive := term.IsTerminal(int(os.Stdin.Fd())) && !addAll
 	isUpdate := false
 	if existing, ok := m.Dependencies[alias]; ok {
 		isUpdate = true
-		if existing.URL == depURL {
+		if existing.URL == depURL && !isInteractive {
 			cmd.Printf("Dependency %q is already at %s — nothing to do.\n", alias, depURL)
 			return nil
 		}
-		cmd.Printf("Updating %q: %s → %s\n", alias, existing.URL, depURL)
+		if existing.URL != depURL {
+			cmd.Printf("Updating %q: %s → %s\n", alias, existing.URL, depURL)
+		}
 	}
 
 	// Add dependency in memory
 	if m.Dependencies == nil {
 		m.Dependencies = make(map[string]manifest.DependencySpec)
 	}
-	m.Dependencies[alias] = manifest.DependencySpec{URL: depURL}
+	if parsed.Subpath != "" {
+		m.Dependencies[alias] = manifest.DependencySpec{URL: depURL, Select: []string{parsed.Subpath}}
+	} else {
+		m.Dependencies[alias] = manifest.DependencySpec{URL: depURL}
+	}
 
 	// Interactive skill selection: if running in a TTY with multiple
 	// skills available, let the user pick which skills to include.
-	addAll, _ := cmd.Flags().GetBool("all")
-	if !addAll && term.IsTerminal(int(os.Stdin.Fd())) {
+	if isInteractive {
 		selected, err := discoverAndSelect(cmd, parsed)
 		if err != nil {
 			cmd.PrintErrf("⚠ Could not discover skills: %v — installing all.\n", err)

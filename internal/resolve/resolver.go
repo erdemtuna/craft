@@ -366,7 +366,7 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 	}
 
 	// Check pinfile reuse — skip for branch deps (must always re-resolve)
-	if opts.ExistingPinfile != nil && !opts.ForceResolve[dep.URL] && parsed.RefType != RefTypeBranch {
+	if opts.ExistingPinfile != nil && !opts.ForceResolve[dep.URL] && parsed.RefType != RefTypeBranch && len(dep.Select) == 0 {
 		if entry, ok := opts.ExistingPinfile.Resolved[dep.URL]; ok {
 			dep.Commit = entry.Commit
 			dep.Integrity = entry.Integrity

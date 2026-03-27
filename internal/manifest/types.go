@@ -4,6 +4,7 @@ package manifest
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,7 +39,7 @@ func (d *DependencySpec) UnmarshalYAML(value *yaml.Node) error {
 			return fmt.Errorf("structured dependency requires 'url' field")
 		}
 		d.URL = r.URL
-		d.Select = r.Select
+		d.Select = normalizeSelectPaths(r.Select)
 		return nil
 	}
 	return fmt.Errorf("dependency must be a string or object, got %v", value.Kind)
@@ -66,4 +67,18 @@ type Manifest struct {
 
 	// Metadata holds arbitrary key-value pairs for extensibility.
 	Metadata map[string]string `yaml:"metadata,omitempty"`
+}
+
+// normalizeSelectPaths strips leading "./" and trailing "/" from each select path.
+func normalizeSelectPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		p = strings.TrimPrefix(p, "./")
+		p = strings.TrimSuffix(p, "/")
+		out[i] = p
+	}
+	return out
 }

@@ -6,13 +6,13 @@ The feature spans five components:
 
 1. **DependencySpec type** (`internal/manifest/`) — Dependencies are now `DependencySpec` values, not plain strings. A `DependencySpec` transparently represents either a simple URL string or a structured `{url, select}` object via a custom YAML unmarshaler on `*yaml.Node`. Serialization canonicalizes: empty `select` → simple string.
 
-2. **DepURL `#subpath` parsing** (`internal/depurl/`) — The URL parser extracts an optional `#fragment` after the version/ref component, storing it in a `Subpath` field. The `#` separator aligns with PURL (ECMA-427) fragment syntax.
+2. **DepURL `#subpath` parsing** (`internal/resolve/`) — The URL parser extracts an optional `#fragment` after the version/ref component, storing it in a `Subpath` field. The `#` separator aligns with PURL (ECMA-427) fragment syntax.
 
 3. **Resolver filtering** (`internal/resolve/`) — After discovering all skills in a package, the resolver filters against the `Select` paths. Only matched skills are included in integrity computation and installation. Unmatched select paths cause resolution failure with a descriptive error. When multiple aliases reference the same package, their select lists are unioned; an empty select (meaning "all") wins over any specific selection.
 
-4. **Interactive preview in `craft add`** (`cmd/craft/`) — When adding a multi-skill package in a TTY, `craft add` fetches available skills and presents an interactive selection prompt. Users toggle skills with space and confirm with enter. `--all` or non-TTY skips the prompt.
+4. **Interactive preview in `craft add`** (`internal/cli/`) — When adding a multi-skill package in a TTY, `craft add` fetches available skills and presents a numbered list. Users enter comma-separated skill numbers (e.g. 1,3,5), 'a' for all, or Enter for all. `--all` or non-TTY skips the prompt.
 
-5. **New-skill discovery in `craft update`** (`cmd/craft/`) — During update, the resolver compares the full set of available skills against the current selection. Newly available skills are reported as informational messages.
+5. **New-skill discovery in `craft update`** (`internal/cli/`) — During update, the resolver compares the full set of available skills against the current selection. Newly available skills are reported as informational messages.
 
 ## Key Design Decisions
 
