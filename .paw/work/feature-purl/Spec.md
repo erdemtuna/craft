@@ -92,7 +92,7 @@ Acceptance Scenarios:
 - FR-002: The manifest supports two dependency formats — a string (existing) and a structured object with `url` (required) and `select` (optional list of subpath strings) (Stories: P1, P3, P5)
 - FR-003: Manifest parsing uses a custom YAML unmarshaler to transparently handle both string and object dependency formats (Stories: P1, P3)
 - FR-004: Manifest validation rejects select paths that are absolute, contain `..`, or are otherwise invalid (Stories: P1)
-- FR-005: Manifest serialization preserves format fidelity — simple dependencies write as strings, structured dependencies write as objects (Stories: P1, P3)
+- FR-005: Manifest serialization writes dependencies in canonical form — dependencies without a `select` list are written as simple strings, dependencies with a non-empty `select` list are written as structured objects. A structured dependency with empty or absent `select` is canonicalized to a simple string on write (Stories: P1, P3)
 - FR-006: The resolver filters discovered skills against the `select` list, scanning all discoverable skills in the repository (not just the package's declared exports), returning only matching skills for integrity computation and installation (Stories: P1, P2)
 - FR-007: The resolver fails with an error if any selected path does not match a discovered skill in the package (Stories: P1, P2)
 - FR-008: When multiple manifest entries reference the same package identity, MVS selects one version and unions their `select` lists. If any entry has an empty select, the merged result is "all skills" (Stories: P5)
