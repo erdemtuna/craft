@@ -12,11 +12,11 @@ import (
 // which to include by entering numbers. Returns indices of selected items.
 // If all are selected, returns nil (meaning "all").
 func MultiSelect(prompt string, items []string, w io.Writer, r io.Reader) ([]int, error) {
-	fmt.Fprintln(w, prompt)
+	_, _ = fmt.Fprintln(w, prompt)
 	for i, item := range items {
-		fmt.Fprintf(w, "  [%d] %s\n", i+1, item)
+		_, _ = fmt.Fprintf(w, "  [%d] %s\n", i+1, item)
 	}
-	fmt.Fprint(w, "Enter numbers to include (e.g. 1,3,5), 'a' for all, or Enter for all: ")
+	_, _ = fmt.Fprint(w, "Enter numbers to include (e.g. 1,3,5), 'a' for all, or Enter for all: ")
 
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {

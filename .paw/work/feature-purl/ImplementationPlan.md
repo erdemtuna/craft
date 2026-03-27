@@ -49,7 +49,7 @@ Key constraints from research:
 - [x] **Phase 4: CLI `craft get` Subpath** - Parse `#subpath` from CLI argument, create structured dep
 - [x] **Phase 5: Interactive `craft add` Preview** - Skill discovery, multi-select UI, `--all` flag
 - [x] **Phase 6: `craft update` Discovery** - Detect and report newly available skills
-- [ ] **Phase 7: Documentation** - Docs.md, README updates, CHANGELOG entry
+- [x] **Phase 7: Documentation** - Docs.md, README updates, CHANGELOG entry
 
 ## Phase Candidates
 
