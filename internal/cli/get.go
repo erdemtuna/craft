@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	installlib "github.com/erdemtuna/craft/internal/install"
@@ -72,7 +73,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 		}
-		deps = append(deps, depEntry{alias: args[0], url: args[1], parsed: parsed, explicitAlias: true})
+		cleanURL := parsed.PackageIdentity() + "@" + parsed.RefString()
+		deps = append(deps, depEntry{alias: args[0], url: cleanURL, parsed: parsed, explicitAlias: true})
 	} else {
 		// All args are URLs
 		for _, arg := range args {
@@ -80,7 +82,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 			}
-			deps = append(deps, depEntry{alias: parsed.Repo, url: arg, parsed: parsed})
+			cleanURL := parsed.PackageIdentity() + "@" + parsed.RefString()
+			deps = append(deps, depEntry{alias: parsed.Repo, url: cleanURL, parsed: parsed})
 		}
 	}
 
@@ -121,7 +124,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if !ok {
 			continue
 		}
-		if existingSpec.URL == dep.url {
+		newSelect := selectFromSubpath(dep.parsed.Subpath)
+		if existingSpec.URL == dep.url && slices.Equal(existingSpec.Select, newSelect) {
 			cmd.Printf("%q is already installed at %s — skipping.\n", dep.alias, dep.url)
 			// Mark as skip by clearing URL
 			deps[i].url = ""
@@ -193,7 +197,11 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 	// Add all deps to manifest
 	for _, dep := range activeDeps {
-		m.Dependencies[dep.alias] = manifest.DependencySpec{URL: dep.url}
+		spec := manifest.DependencySpec{
+			URL:    dep.url,
+			Select: selectFromSubpath(dep.parsed.Subpath),
+		}
+		m.Dependencies[dep.alias] = spec
 		// Warn about non-tagged dependencies
 		if dep.parsed.RefType != resolve.RefTypeTag {
 			cmd.PrintErrln("⚠ Non-tagged dependency: " + dep.url)
@@ -304,4 +312,13 @@ func runGet(cmd *cobra.Command, args []string) error {
 	printDependencyTree(cmd, m, result)
 
 	return nil
+}
+
+// selectFromSubpath returns a single-element Select slice when subpath is
+// non-empty, or nil when there is no subpath (meaning "install all skills").
+func selectFromSubpath(subpath string) []string {
+	if subpath == "" {
+		return nil
+	}
+	return []string{subpath}
 }
