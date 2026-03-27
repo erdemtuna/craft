@@ -35,6 +35,10 @@ Found a skill package you want to use? One command:
 ```bash
 $ craft get github.com/acme/company-standards@v2.1.0
 Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
+
+# Install a specific skill from a large package
+$ craft get github.com/acme/skills@v1.0.0#skills/docx
+Installed 1 skill(s) from 1 package(s) to /home/user/.claude/skills
 ```
 
 That's it — skills are installed to your AI agent and tracked for updates. No project setup needed.
@@ -88,6 +92,13 @@ skills:
 
 dependencies:
   standards: github.com/acme/company-standards@v2.1.0
+
+  # Or install only specific skills from a large package
+  acme:
+    url: github.com/acme/skills@v1.0.0
+    select:
+      - skills/docx
+      - skills/pdf
 ```
 
 Meanwhile, the docs team's `doc-generator` skill and the infra team's `api-designer` skill all depend on the same `company-standards` package. When the platform team updates the conventions to v2.2.0, every team bumps one version number and gets the update — no copy-paste drift, no stale rules.
@@ -175,9 +186,9 @@ Operate on the project manifest (`craft.yaml`) in the current directory.
 | Command | Description |
 |---------|-------------|
 | `craft init` | Interactive package setup with skill auto-discovery |
-| `craft add [alias] <url>` | Add a dependency to `craft.yaml` |
+| `craft add [alias] <url> [--all]` | Add a dependency to `craft.yaml` (interactive skill selection for multi-skill packages) |
 | `craft install` | Resolve, pin, and vendor dependencies to `forge/` |
-| `craft update [alias]` | Update project dependencies (re-resolve branches, skip commit pins, bump tags) |
+| `craft update [alias]` | Update project dependencies (re-resolve branches, skip commit pins, bump tags); informs about newly available skills in selectively installed packages |
 | `craft remove <alias>` | Remove a dependency and clean up orphaned skills from `forge/` |
 | `craft list` | List project dependencies with versions and skill counts |
 | `craft tree` | Print project dependency tree |
@@ -202,6 +213,10 @@ Install skills from any repository directly into your AI agent's skill directory
 $ craft get github.com/acme/company-standards@v2.1.0
 Installed 2 skill(s) from 1 package(s) to /home/user/.claude/skills
 
+# Install a specific skill from a package using #subpath
+$ craft get github.com/acme/skills@v1.0.0#skills/docx
+Installed 1 skill(s) from 1 package(s) to /home/user/.claude/skills
+
 # Install with a custom alias
 $ craft get standards github.com/acme/company-standards@v2.1.0
 
@@ -218,6 +233,8 @@ Global state is tracked at `~/.craft/craft.yaml` and `~/.craft/craft.pin.yaml` �
 
 Add a dependency to your `craft.yaml`. The dependency is resolved and verified before the manifest is updated.
 
+For packages with multiple skills, `craft add` presents an interactive prompt so you can choose which skills to include. Use `--all` to skip the prompt and install everything. In non-TTY environments (e.g., CI/CD), the prompt is automatically skipped.
+
 ```bash
 # Add with auto-derived alias (uses repo name)
 $ craft add github.com/acme/utility-skills@v1.0.0
@@ -227,6 +244,9 @@ Added "utility-skills" → github.com/acme/utility-skills@v1.0.0
 
 # Add with custom alias
 $ craft add utils github.com/acme/utility-skills@v1.0.0
+
+# Skip interactive selection — install all skills
+$ craft add --all github.com/acme/productivity-suite@v2.0.0
 
 # Add and immediately vendor to forge/
 $ craft add --install github.com/acme/utility-skills@v1.0.0
@@ -327,6 +347,7 @@ $ echo $?
 | Flag | Available On | Description |
 |------|-------------|-------------|
 | `--dry-run` | `install`, `update`, `get` | Show what would happen without making any changes |
+| `--all` | `add` | Skip interactive skill selection and install all skills from the package |
 | `--target <path>` | `get`, `install -g`, `update -g`, `remove` | Override agent auto-detection with a custom install path. Rejected on project-scope `install` and `update` (skills vendor to `forge/`). |
 
 ## Manifest Reference (`craft.yaml`)
@@ -340,10 +361,17 @@ license: MIT                # Optional
 skills:                     # Relative paths to skill directories
   - ./skills/my-skill
 
-dependencies:               # alias → host/org/repo@<ref>
-  utils: github.com/example/util-skills@v1.0.0           # tagged version
+dependencies:               # alias → URL string or structured object
+  utils: github.com/example/util-skills@v1.0.0           # tagged version (all skills)
   tools: github.com/example/dev-tools@branch:main        # branch tracking
   legacy: github.com/example/old-skills@abc1234def5678   # commit pin
+
+  # Structured format — install only selected skills
+  acme:
+    url: github.com/example/big-suite@v2.0.0
+    select:
+      - skills/docx
+      - skills/pdf
 ```
 
 ## `SKILL.md`
@@ -380,7 +408,7 @@ The flat directory name is derived from the composite key: slashes become `--`, 
 ## Known Limitations
 
 - **go-git SSH limitations** — craft uses [go-git](https://github.com/go-git/go-git) for git operations. This means no `~/.ssh/config` ProxyJump support, no hardware token (YubiKey) auth, and no agent forwarding. Set `GITHUB_TOKEN` or `CRAFT_TOKEN` for private repos as a reliable alternative.
-- **No monorepo subpath support** — dependency URLs point to whole repositories (`github.com/org/repo@v1.0.0`). Subpath support (e.g., `repo/path/to/skills@v1`) is designed for but not yet implemented.
+- **No glob patterns in skill selection** — `select` paths must be explicit (e.g., `skills/docx`); glob patterns like `skills/doc*` are not supported.
 - **No pre-release versions** — tagged version refs must be strict semver (`vMAJOR.MINOR.PATCH`). Pre-release suffixes like `-beta.1` are rejected. (Commit SHA and branch refs are unaffected.)
 - **No version ranges** — tagged dependencies use exact versions. `craft update` bumps tags to the latest available, re-resolves branch deps to HEAD, and skips commit pins; there are no `^` or `~` range constraints.
 - **Cache grows unbounded** — use `craft cache clean` periodically to reclaim disk space.

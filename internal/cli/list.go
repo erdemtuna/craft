@@ -41,8 +41,8 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Build alias-to-URL lookup from manifest
 	urlToAlias := make(map[string]string)
-	for alias, depURL := range m.Dependencies {
-		parsed, err := resolve.ParseDepURL(depURL)
+	for alias, depSpec := range m.Dependencies {
+		parsed, err := resolve.ParseDepURL(depSpec.URL)
 		if err != nil {
 			continue
 		}

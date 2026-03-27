@@ -38,7 +38,7 @@ const maxCommitSHALength = 64
 
 // DepURL represents a parsed dependency URL from craft.yaml.
 type DepURL struct {
-	// Raw is the original URL string (e.g., "github.com/example/skills@v1.0.0").
+	// Raw preserves the original (fragment-stripped) URL for diagnostic use and test verification.
 	Raw string
 
 	// Host is the registry host (e.g., "github.com").
@@ -60,6 +60,10 @@ type DepURL struct {
 
 	// RefType identifies the kind of reference (tag, commit, branch).
 	RefType RefType
+
+	// Subpath is the optional subpath fragment (e.g., "skills/docx").
+	// Parsed from #fragment syntax: host/org/repo@ref#subpath
+	Subpath string
 }
 
 // ParseDepURL parses a dependency URL string into its components.
@@ -70,6 +74,13 @@ type DepURL struct {
 //
 // Returns an error if the URL does not match any expected format.
 func ParseDepURL(raw string) (*DepURL, error) {
+	// Extract optional #subpath fragment before any other parsing.
+	var subpath string
+	if hashIdx := strings.Index(raw, "#"); hashIdx >= 0 {
+		subpath = normalizeSubpath(raw[hashIdx+1:])
+		raw = raw[:hashIdx]
+	}
+
 	atIdx := strings.Index(raw, "@")
 	if atIdx < 0 {
 		return nil, fmt.Errorf("invalid dependency URL %q: missing '@' — expected host/org/repo@<ref> where ref is vX.Y.Z, a commit SHA, or branch:<name>", raw)
@@ -88,10 +99,11 @@ func ParseDepURL(raw string) (*DepURL, error) {
 	}
 
 	d := &DepURL{
-		Raw:  raw,
-		Host: matches[1],
-		Org:  matches[2],
-		Repo: matches[3],
+		Raw:     raw,
+		Host:    matches[1],
+		Org:     matches[2],
+		Repo:    matches[3],
+		Subpath: subpath,
 	}
 
 	if strings.HasPrefix(ref, "branch:") {
@@ -169,10 +181,20 @@ func (d *DepURL) WithVersion(version string) string {
 	return d.PackageIdentity() + "@v" + version
 }
 
-// String returns the raw dependency URL, or reconstructs it from components.
+// String returns the dependency URL, reconstructed from components.
 func (d *DepURL) String() string {
-	if d.Raw != "" {
-		return d.Raw
+	s := d.PackageIdentity() + "@" + d.RefString()
+	if d.Subpath != "" {
+		s += "#" + d.Subpath
 	}
-	return d.PackageIdentity() + "@" + d.RefString()
+	return s
+}
+
+// normalizeSubpath strips leading "./" and trailing "/" from a subpath.
+// Returns empty string for empty or whitespace-only input.
+func normalizeSubpath(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "./")
+	s = strings.TrimSuffix(s, "/")
+	return s
 }

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/erdemtuna/craft/internal/manifest"
 )
 
 func TestRunRemove_ExistingDep(t *testing.T) {
@@ -243,9 +245,9 @@ resolved:
 }
 
 func TestAvailableAliases(t *testing.T) {
-	deps := map[string]string{
-		"zebra": "z",
-		"alpha": "a",
+	deps := map[string]manifest.DependencySpec{
+		"zebra": {URL: "z"},
+		"alpha": {URL: "a"},
 	}
 	got := availableAliases(deps)
 	if got != "alpha, zebra" {

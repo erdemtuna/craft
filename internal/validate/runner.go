@@ -264,13 +264,13 @@ func (r *Runner) checkPinfile(result *Result, m *manifest.Manifest) *pinfile.Pin
 
 	// Each manifest dependency should have a pinfile entry
 	depURLs := make(map[string]bool)
-	for _, url := range m.Dependencies {
-		depURLs[url] = true
-		if _, ok := p.Resolved[url]; !ok {
+	for _, dep := range m.Dependencies {
+		depURLs[dep.URL] = true
+		if _, ok := p.Resolved[dep.URL]; !ok {
 			result.Errors = append(result.Errors, &Error{
 				Category:   CategoryPinfile,
 				Path:       "craft.pin.yaml",
-				Field:      url,
+				Field:      dep.URL,
 				Message:    "manifest dependency has no matching pinfile entry",
 				Suggestion: "Run 'craft install' to regenerate the pinfile",
 			})
@@ -315,19 +315,19 @@ func (r *Runner) checkNameCollisions(result *Result, skillNames map[string][]str
 // Checks direct deps via manifest URLs and transitive deps via pinfile ref_type.
 func (r *Runner) checkNonTaggedDeps(result *Result, m *manifest.Manifest, p *pinfile.Pinfile) {
 	// Check direct dependencies from manifest
-	for alias, url := range m.Dependencies {
-		parsed, err := resolve.ParseDepURL(url)
+	for alias, dep := range m.Dependencies {
+		parsed, err := resolve.ParseDepURL(dep.URL)
 		if err != nil {
 			continue
 		}
 		switch parsed.RefType {
 		case resolve.RefTypeBranch:
 			result.Warnings = append(result.Warnings, &Warning{
-				Message: fmt.Sprintf("dependency %q tracks a branch (%s) — weaker reproducibility guarantees than tagged versions", alias, url),
+				Message: fmt.Sprintf("dependency %q tracks a branch (%s) — weaker reproducibility guarantees than tagged versions", alias, dep.URL),
 			})
 		case resolve.RefTypeCommit:
 			result.Warnings = append(result.Warnings, &Warning{
-				Message: fmt.Sprintf("dependency %q uses a commit pin (%s) — reproducible but frozen; no updates available", alias, url),
+				Message: fmt.Sprintf("dependency %q uses a commit pin (%s) — reproducible but frozen; no updates available", alias, dep.URL),
 			})
 		}
 	}

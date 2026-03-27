@@ -44,8 +44,8 @@ metadata:
 	if len(m.Dependencies) != 1 {
 		t.Fatalf("Dependencies length = %d, want 1", len(m.Dependencies))
 	}
-	if m.Dependencies["git-ops"] != "github.com/example/git@v1.0.0" {
-		t.Errorf("Dependencies[git-ops] = %q", m.Dependencies["git-ops"])
+	if m.Dependencies["git-ops"].URL != "github.com/example/git@v1.0.0" {
+		t.Errorf("Dependencies[git-ops].URL = %q", m.Dependencies["git-ops"].URL)
 	}
 	if m.Metadata["author"] != "tester" {
 		t.Errorf("Metadata[author] = %q", m.Metadata["author"])

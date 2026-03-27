@@ -68,7 +68,8 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 	sort.Strings(aliases)
 
 	for _, alias := range aliases {
-		depURL := m.Dependencies[alias]
+		depSpec := m.Dependencies[alias]
+		depURL := depSpec.URL
 		parsed, err := resolve.ParseDepURL(depURL)
 		if err != nil {
 			results = append(results, depStatus{alias: alias, err: fmt.Errorf("invalid URL: %w", err)})

@@ -14,8 +14,8 @@ func TestWriteRoundTrip(t *testing.T) {
 		Description:   "Test round-trip.",
 		License:       "MIT",
 		Skills:        []string{"./skills/one", "./skills/two"},
-		Dependencies: map[string]string{
-			"dep-a": "github.com/org/repo-a@v1.0.0",
+		Dependencies: map[string]DependencySpec{
+			"dep-a": {URL: "github.com/org/repo-a@v1.0.0"},
 		},
 		Metadata: map[string]string{
 			"author": "test",
@@ -52,8 +52,8 @@ func TestWriteRoundTrip(t *testing.T) {
 			t.Errorf("Skills[%d]: got %q, want %q", i, parsed.Skills[i], s)
 		}
 	}
-	if parsed.Dependencies["dep-a"] != original.Dependencies["dep-a"] {
-		t.Errorf("Dependencies[dep-a]: got %q, want %q", parsed.Dependencies["dep-a"], original.Dependencies["dep-a"])
+	if parsed.Dependencies["dep-a"].URL != original.Dependencies["dep-a"].URL {
+		t.Errorf("Dependencies[dep-a]: got %q, want %q", parsed.Dependencies["dep-a"].URL, original.Dependencies["dep-a"].URL)
 	}
 	if parsed.Metadata["author"] != original.Metadata["author"] {
 		t.Errorf("Metadata[author]: got %q, want %q", parsed.Metadata["author"], original.Metadata["author"])
@@ -124,10 +124,10 @@ func TestWriteMapKeyOrder(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "key-order",
 		Skills:        []string{"./skill"},
-		Dependencies: map[string]string{
-			"charlie": "github.com/org/charlie@v1.0.0",
-			"alpha":   "github.com/org/alpha@v1.0.0",
-			"bravo":   "github.com/org/bravo@v1.0.0",
+		Dependencies: map[string]DependencySpec{
+			"charlie": {URL: "github.com/org/charlie@v1.0.0"},
+			"alpha":   {URL: "github.com/org/alpha@v1.0.0"},
+			"bravo":   {URL: "github.com/org/bravo@v1.0.0"},
 		},
 		Metadata: map[string]string{
 			"zebra": "z",
@@ -171,6 +171,93 @@ type errWriter struct{}
 
 func (errWriter) Write([]byte) (int, error) {
 	return 0, fmt.Errorf("simulated write failure")
+}
+
+func TestWriteRoundTripStructuredDeps(t *testing.T) {
+	original := &Manifest{
+		SchemaVersion: 1,
+		Name:          "structured-round-trip",
+		Skills:        []string{"./skills/one"},
+		Dependencies: map[string]DependencySpec{
+			"acme": {
+				URL:    "github.com/acme/skills@v1.0.0",
+				Select: []string{"skills/docx", "skills/pdf"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Write(original, &buf); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "url:") {
+		t.Error("Structured dep should contain 'url:' key")
+	}
+	if !strings.Contains(output, "select:") {
+		t.Error("Structured dep should contain 'select:' key")
+	}
+
+	parsed, err := Parse(&buf)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	dep := parsed.Dependencies["acme"]
+	if dep.URL != "github.com/acme/skills@v1.0.0" {
+		t.Errorf("URL: got %q, want %q", dep.URL, "github.com/acme/skills@v1.0.0")
+	}
+	if len(dep.Select) != 2 {
+		t.Fatalf("Select length: got %d, want 2", len(dep.Select))
+	}
+	if dep.Select[0] != "skills/docx" || dep.Select[1] != "skills/pdf" {
+		t.Errorf("Select: got %v, want [skills/docx skills/pdf]", dep.Select)
+	}
+}
+
+func TestWriteRoundTripMixedDeps(t *testing.T) {
+	original := &Manifest{
+		SchemaVersion: 1,
+		Name:          "mixed-round-trip",
+		Skills:        []string{"./skills/one"},
+		Dependencies: map[string]DependencySpec{
+			"simple": {URL: "github.com/org/simple@v1.0.0"},
+			"structured": {
+				URL:    "github.com/org/structured@v2.0.0",
+				Select: []string{"skills/a"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Write(original, &buf); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	output := buf.String()
+	// Simple dep should be a scalar value
+	if !strings.Contains(output, "simple: github.com/org/simple@v1.0.0") {
+		t.Errorf("Simple dep should be scalar in output:\n%s", output)
+	}
+
+	parsed, err := Parse(&buf)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if parsed.Dependencies["simple"].URL != "github.com/org/simple@v1.0.0" {
+		t.Errorf("Simple dep URL mismatch")
+	}
+	if len(parsed.Dependencies["simple"].Select) != 0 {
+		t.Errorf("Simple dep should have no Select")
+	}
+	if parsed.Dependencies["structured"].URL != "github.com/org/structured@v2.0.0" {
+		t.Errorf("Structured dep URL mismatch")
+	}
+	if len(parsed.Dependencies["structured"].Select) != 1 {
+		t.Errorf("Structured dep should have 1 Select entry")
+	}
 }
 
 func TestWriteError(t *testing.T) {

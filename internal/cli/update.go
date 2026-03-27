@@ -103,11 +103,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Find latest versions for targeted deps
 	progress.Start("Checking for updates...")
 	updated := false
-	for alias, depURL := range m.Dependencies {
+	for alias, depSpec := range m.Dependencies {
 		if targetAlias != "" && alias != targetAlias {
 			continue
 		}
 
+		depURL := depSpec.URL
 		parsed, err := resolve.ParseDepURL(depURL)
 		if err != nil {
 			return fmt.Errorf("invalid dependency URL for %q: %w", alias, err)
@@ -158,7 +159,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 			if semver.Compare(strings.TrimPrefix(latest, "v"), parsed.Version) > 0 {
 				newURL := parsed.WithVersion(latest)
-				m.Dependencies[alias] = newURL
+				m.Dependencies[alias] = manifest.DependencySpec{URL: newURL, Select: depSpec.Select}
 				updated = true
 				cmd.Printf("  %s: %s → %s\n", alias, parsed.GitRef(), latest)
 			}
@@ -177,9 +178,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Resolve before writing anything to disk
 	progress.Update("Resolving updated dependencies...")
 	forceResolve := make(map[string]bool)
-	for alias, depURL := range m.Dependencies {
+	for alias, depSpec := range m.Dependencies {
 		if targetAlias == "" || alias == targetAlias {
-			forceResolve[depURL] = true
+			forceResolve[depSpec.URL] = true
 		}
 	}
 
@@ -191,6 +192,37 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		progress.Fail("Resolution failed")
 		return fmt.Errorf("resolution failed: %w", err)
+	}
+
+	// Notify about newly discovered skills in selectively-installed deps.
+	for _, dep := range result.Resolved {
+		if len(dep.Select) == 0 {
+			continue
+		}
+		installed := make(map[string]bool, len(dep.SkillPaths))
+		for _, p := range dep.SkillPaths {
+			installed[p] = true
+		}
+		var newSkills []string
+		for _, p := range dep.AllSkillPaths {
+			if !installed[p] {
+				newSkills = append(newSkills, p)
+			}
+		}
+		if len(newSkills) > 0 {
+			alias := dep.Alias
+			if alias == "" {
+				for a, ds := range m.Dependencies {
+					if ds.URL == dep.URL {
+						alias = a
+						break
+					}
+				}
+			}
+			if alias != "" {
+				cmd.Printf("ℹ  New skills available in %s: %s\n   Use 'craft add' to include them.\n", alias, strings.Join(newSkills, ", "))
+			}
+		}
 	}
 
 	// Dry-run: show what would change and exit

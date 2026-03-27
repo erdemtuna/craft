@@ -7,11 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/erdemtuna/craft/internal/fetch"
 	installlib "github.com/erdemtuna/craft/internal/install"
 	"github.com/erdemtuna/craft/internal/manifest"
 	"github.com/erdemtuna/craft/internal/pinfile"
 	"github.com/erdemtuna/craft/internal/resolve"
+	"github.com/erdemtuna/craft/internal/ui"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var addInstall bool
@@ -33,6 +36,7 @@ The dependency is verified by resolving it before updating the manifest.`,
 
 func init() {
 	addCmd.Flags().BoolVar(&addInstall, "install", false, "Run install after adding the dependency (vendors to forge/)")
+	addCmd.Flags().Bool("all", false, "Install all skills without interactive selection")
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {
@@ -49,6 +53,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 	}
+
+	// Strip #fragment from URL — subpath is handled via Select
+	depURL = parsed.PackageIdentity() + "@" + parsed.RefString()
 
 	// Warn about non-tagged dependencies
 	if parsed.RefType != resolve.RefTypeTag {
@@ -81,28 +88,47 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check for existing dependency
+	addAll, _ := cmd.Flags().GetBool("all")
+	isInteractive := term.IsTerminal(int(os.Stdin.Fd())) && !addAll
 	isUpdate := false
 	if existing, ok := m.Dependencies[alias]; ok {
 		isUpdate = true
-		if existing == depURL {
+		if existing.URL == depURL && !isInteractive {
 			cmd.Printf("Dependency %q is already at %s — nothing to do.\n", alias, depURL)
 			return nil
 		}
-		cmd.Printf("Updating %q: %s → %s\n", alias, existing, depURL)
+		if existing.URL != depURL {
+			cmd.Printf("Updating %q: %s → %s\n", alias, existing.URL, depURL)
+		}
 	}
 
 	// Add dependency in memory
 	if m.Dependencies == nil {
-		m.Dependencies = make(map[string]string)
+		m.Dependencies = make(map[string]manifest.DependencySpec)
 	}
-	m.Dependencies[alias] = depURL
+	if parsed.Subpath != "" {
+		m.Dependencies[alias] = manifest.DependencySpec{URL: depURL, Select: []string{parsed.Subpath}}
+	} else {
+		m.Dependencies[alias] = manifest.DependencySpec{URL: depURL}
+	}
 
-	// Validate by resolving with full manifest
 	fetcher, err := newFetcher()
 	if err != nil {
 		return err
 	}
 
+	// Interactive skill selection: if running in a TTY with multiple
+	// skills available, let the user pick which skills to include.
+	if isInteractive && parsed.Subpath == "" {
+		selected, err := discoverAndSelect(cmd, parsed, fetcher)
+		if err != nil {
+			cmd.PrintErrf("⚠ Could not discover skills: %v — installing all.\n", err)
+		} else if len(selected) > 0 {
+			m.Dependencies[alias] = manifest.DependencySpec{URL: depURL, Select: selected}
+		}
+	}
+
+	// Validate by resolving with full manifest
 	// Load existing pinfile to preserve pins for unchanged deps
 	var existingPinfile *pinfile.Pinfile
 	pfPath := filepath.Join(root, "craft.pin.yaml")
@@ -184,4 +210,75 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// discoverAndSelect fetches the skill list for a package and prompts the
+// user to pick a subset when multiple skills are found. Returns nil (meaning
+// "all") when the user selects everything or when only one skill exists.
+// Returns the selected skill directory paths when a subset is chosen.
+func discoverAndSelect(cmd *cobra.Command, parsed *resolve.DepURL, fetcher fetch.GitFetcher) ([]string, error) {
+	cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
+
+	// Resolve the ref to a commit SHA
+	var (
+		commitSHA string
+		err       error
+	)
+	if parsed.RefType == resolve.RefTypeCommit {
+		commitSHA = parsed.Ref
+	} else {
+		commitSHA, err = fetcher.ResolveRef(cloneURL, parsed.GitRef())
+		if err != nil {
+			return nil, fmt.Errorf("resolving ref: %w", err)
+		}
+	}
+
+	// List all files and discover skills
+	paths, err := fetcher.ListTree(cloneURL, commitSHA)
+	if err != nil {
+		return nil, fmt.Errorf("listing tree: %w", err)
+	}
+
+	skills, err := resolve.DiscoverSkills(paths, func(path string) ([]byte, error) {
+		files, err := fetcher.ReadFiles(cloneURL, commitSHA, []string{path})
+		if err != nil {
+			return nil, err
+		}
+		content, ok := files[path]
+		if !ok {
+			return nil, fmt.Errorf("file not found: %s", path)
+		}
+		return content, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("discovering skills: %w", err)
+	}
+
+	if len(skills) <= 1 {
+		return nil, nil
+	}
+
+	// Build display names
+	names := make([]string, len(skills))
+	for i, s := range skills {
+		names[i] = s.Name
+	}
+
+	cmd.Printf("Found %d skills in package:\n", len(skills))
+	indices, err := ui.MultiSelect("Select skills to include:", names, cmd.OutOrStderr(), os.Stdin)
+	if err != nil {
+		return nil, err
+	}
+
+	// nil means "all"
+	if indices == nil {
+		return nil, nil
+	}
+
+	// Map selected indices to skill directory paths
+	selected := make([]string, len(indices))
+	for i, idx := range indices {
+		selected[i] = skills[idx].Dir
+	}
+	return selected, nil
 }

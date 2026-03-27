@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	installlib "github.com/erdemtuna/craft/internal/install"
@@ -72,7 +73,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 		}
-		deps = append(deps, depEntry{alias: args[0], url: args[1], parsed: parsed, explicitAlias: true})
+		cleanURL := parsed.PackageIdentity() + "@" + parsed.RefString()
+		deps = append(deps, depEntry{alias: args[0], url: cleanURL, parsed: parsed, explicitAlias: true})
 	} else {
 		// All args are URLs
 		for _, arg := range args {
@@ -80,7 +82,8 @@ func runGet(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("%w\n  hint: expected format: host/org/repo@v1.0.0, host/org/repo@<sha>, or host/org/repo@branch:<name>", err)
 			}
-			deps = append(deps, depEntry{alias: parsed.Repo, url: arg, parsed: parsed})
+			cleanURL := parsed.PackageIdentity() + "@" + parsed.RefString()
+			deps = append(deps, depEntry{alias: parsed.Repo, url: cleanURL, parsed: parsed})
 		}
 	}
 
@@ -106,22 +109,23 @@ func runGet(cmd *cobra.Command, args []string) error {
 		m = &manifest.Manifest{
 			SchemaVersion: 1,
 			Name:          "global",
-			Dependencies:  make(map[string]string),
+			Dependencies:  make(map[string]manifest.DependencySpec),
 		}
 	}
 
 	if m.Dependencies == nil {
-		m.Dependencies = make(map[string]string)
+		m.Dependencies = make(map[string]manifest.DependencySpec)
 	}
 
 	// Check for already-installed deps and prompt if different
 	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 	for i, dep := range deps {
-		existing, ok := m.Dependencies[dep.alias]
+		existingSpec, ok := m.Dependencies[dep.alias]
 		if !ok {
 			continue
 		}
-		if existing == dep.url {
+		newSelect := selectFromSubpath(dep.parsed.Subpath)
+		if existingSpec.URL == dep.url && slices.Equal(existingSpec.Select, newSelect) {
 			cmd.Printf("%q is already installed at %s — skipping.\n", dep.alias, dep.url)
 			// Mark as skip by clearing URL
 			deps[i].url = ""
@@ -130,9 +134,9 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 		// Determine if this is the same package (version change) or a
 		// completely different package that happens to share the repo name.
-		existingParsed, existingErr := resolve.ParseDepURL(existing)
+		existingParsed, existingErr := resolve.ParseDepURL(existingSpec.URL)
 		if existingErr != nil {
-			return fmt.Errorf("existing dependency %q has invalid URL %s: %w", dep.alias, existing, existingErr)
+			return fmt.Errorf("existing dependency %q has invalid URL %s: %w", dep.alias, existingSpec.URL, existingErr)
 		}
 		samePackage := existingParsed.PackageIdentity() == dep.parsed.PackageIdentity()
 
@@ -140,16 +144,16 @@ func runGet(cmd *cobra.Command, args []string) error {
 			if dep.explicitAlias {
 				// User explicitly chose this alias — don't silently rename it
 				return fmt.Errorf("alias %q is already used by a different package (%s)\n  hint: choose a different alias: craft get <alias> %s",
-					dep.alias, existing, dep.url)
+					dep.alias, existingSpec.URL, dep.url)
 			}
 			// Auto-derived alias — derive a unique one using org-repo
 			// so both packages can coexist without prompting.
 			newAlias := dep.parsed.Org + "-" + dep.parsed.Repo
 			if _, collision := m.Dependencies[newAlias]; collision {
 				return fmt.Errorf("alias %q conflicts with a different package (%s)\n  hint: use 'craft get <alias> %s' to provide a distinct alias",
-					dep.alias, existing, dep.url)
+					dep.alias, existingSpec.URL, dep.url)
 			}
-			cmd.Printf("Alias %q is used by %s — using %q instead.\n", dep.alias, existing, newAlias)
+			cmd.Printf("Alias %q is used by %s — using %q instead.\n", dep.alias, existingSpec.URL, newAlias)
 			deps[i].alias = newAlias
 			continue
 		}
@@ -157,9 +161,9 @@ func runGet(cmd *cobra.Command, args []string) error {
 		// Same package, different version — prompt to update
 		if !isTTY {
 			return fmt.Errorf("%q is already installed at %s (requested %s)\n  hint: use an interactive terminal to confirm updates, or use craft update -g",
-				dep.alias, existing, dep.url)
+				dep.alias, existingSpec.URL, dep.url)
 		}
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%q is currently at %s. Update to %s? [y/N]: ", dep.alias, existing, dep.url)
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%q is currently at %s. Update to %s? [y/N]: ", dep.alias, existingSpec.URL, dep.url)
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(scanner.Text())), "y") {
 			cmd.Printf("Skipping %q.\n", dep.alias)
@@ -193,7 +197,11 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 	// Add all deps to manifest
 	for _, dep := range activeDeps {
-		m.Dependencies[dep.alias] = dep.url
+		spec := manifest.DependencySpec{
+			URL:    dep.url,
+			Select: selectFromSubpath(dep.parsed.Subpath),
+		}
+		m.Dependencies[dep.alias] = spec
 		// Warn about non-tagged dependencies
 		if dep.parsed.RefType != resolve.RefTypeTag {
 			cmd.PrintErrln("⚠ Non-tagged dependency: " + dep.url)
@@ -304,4 +312,13 @@ func runGet(cmd *cobra.Command, args []string) error {
 	printDependencyTree(cmd, m, result)
 
 	return nil
+}
+
+// selectFromSubpath returns a single-element Select slice when subpath is
+// non-empty, or nil when there is no subpath (meaning "install all skills").
+func selectFromSubpath(subpath string) []string {
+	if subpath == "" {
+		return nil
+	}
+	return []string{subpath}
 }
