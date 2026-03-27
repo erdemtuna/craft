@@ -3,10 +3,12 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/erdemtuna/craft/internal/manifest"
+	"github.com/erdemtuna/craft/internal/resolve"
 	"github.com/erdemtuna/craft/internal/semver"
 )
 
@@ -169,5 +171,29 @@ func TestWriteManifestAtomic_BadPath(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error for nonexistent directory")
+	}
+}
+
+func TestUpdatePreservesSelect(t *testing.T) {
+	current := manifest.DependencySpec{
+		URL:    "github.com/acme/skills@v1.0.0",
+		Select: []string{"skills/docx", "skills/pdf"},
+	}
+
+	parsed, err := resolve.ParseDepURL(current.URL)
+	if err != nil {
+		t.Fatalf("ParseDepURL() error = %v", err)
+	}
+
+	updated := manifest.DependencySpec{
+		URL:    parsed.WithVersion("v1.2.0"),
+		Select: current.Select,
+	}
+
+	if updated.URL != "github.com/acme/skills@v1.2.0" {
+		t.Errorf("updated URL = %q, want %q", updated.URL, "github.com/acme/skills@v1.2.0")
+	}
+	if !reflect.DeepEqual(updated.Select, current.Select) {
+		t.Errorf("updated Select = %v, want %v", updated.Select, current.Select)
 	}
 }

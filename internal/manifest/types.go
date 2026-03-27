@@ -69,13 +69,15 @@ type Manifest struct {
 	Metadata map[string]string `yaml:"metadata,omitempty"`
 }
 
-// normalizeSelectPaths strips leading "./" and trailing "/" from each select path.
+// normalizeSelectPaths trims whitespace, strips leading "./", and strips
+// trailing "/" from each select path.
 func normalizeSelectPaths(paths []string) []string {
 	if len(paths) == 0 {
 		return paths
 	}
 	out := make([]string, len(paths))
 	for i, p := range paths {
+		p = strings.TrimSpace(p)
 		p = strings.TrimPrefix(p, "./")
 		p = strings.TrimSuffix(p, "/")
 		out[i] = p

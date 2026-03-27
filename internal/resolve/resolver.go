@@ -644,6 +644,8 @@ func filterBySelect(names, dirs []string, files map[string][]byte, selectPaths [
 
 		// Include files under this skill directory
 		prefix := sel + "/"
+		// Safety: empty sel should be rejected by manifest validation;
+		// guard against inclusion of all files if validation is bypassed.
 		if sel == "" {
 			prefix = ""
 		}

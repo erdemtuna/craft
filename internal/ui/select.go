@@ -12,6 +12,9 @@ import (
 // which to include by entering numbers. Returns indices of selected items.
 // If all are selected, returns nil (meaning "all").
 func MultiSelect(prompt string, items []string, w io.Writer, r io.Reader) ([]int, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
 	_, _ = fmt.Fprintln(w, prompt)
 	for i, item := range items {
 		_, _ = fmt.Fprintf(w, "  [%d] %s\n", i+1, item)

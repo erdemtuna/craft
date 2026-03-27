@@ -112,10 +112,15 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		m.Dependencies[alias] = manifest.DependencySpec{URL: depURL}
 	}
 
+	fetcher, err := newFetcher()
+	if err != nil {
+		return err
+	}
+
 	// Interactive skill selection: if running in a TTY with multiple
 	// skills available, let the user pick which skills to include.
-	if isInteractive {
-		selected, err := discoverAndSelect(cmd, parsed)
+	if isInteractive && parsed.Subpath == "" {
+		selected, err := discoverAndSelect(cmd, parsed, fetcher)
 		if err != nil {
 			cmd.PrintErrf("⚠ Could not discover skills: %v — installing all.\n", err)
 		} else if len(selected) > 0 {
@@ -124,11 +129,6 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate by resolving with full manifest
-	fetcher, err := newFetcher()
-	if err != nil {
-		return err
-	}
-
 	// Load existing pinfile to preserve pins for unchanged deps
 	var existingPinfile *pinfile.Pinfile
 	pfPath := filepath.Join(root, "craft.pin.yaml")
@@ -216,16 +216,14 @@ func runAdd(cmd *cobra.Command, args []string) error {
 // user to pick a subset when multiple skills are found. Returns nil (meaning
 // "all") when the user selects everything or when only one skill exists.
 // Returns the selected skill directory paths when a subset is chosen.
-func discoverAndSelect(cmd *cobra.Command, parsed *resolve.DepURL) ([]string, error) {
-	fetcher, err := newFetcher()
-	if err != nil {
-		return nil, err
-	}
-
+func discoverAndSelect(cmd *cobra.Command, parsed *resolve.DepURL, fetcher fetch.GitFetcher) ([]string, error) {
 	cloneURL := fetch.NormalizeCloneURL(parsed.PackageIdentity())
 
 	// Resolve the ref to a commit SHA
-	var commitSHA string
+	var (
+		commitSHA string
+		err       error
+	)
 	if parsed.RefType == resolve.RefTypeCommit {
 		commitSHA = parsed.Ref
 	} else {

@@ -733,6 +733,44 @@ func TestFilterBySelect(t *testing.T) {
 	}
 }
 
+func TestFilterBySelectPrefixCollision(t *testing.T) {
+	names := []string{"doc", "docx"}
+	dirs := []string{"skills/doc", "skills/docx"}
+	files := map[string][]byte{
+		"skills/doc/SKILL.md":      []byte("doc"),
+		"skills/doc/prompt.md":     []byte("doc prompt"),
+		"skills/docx/SKILL.md":     []byte("docx"),
+		"skills/docx/prompt.md":    []byte("docx prompt"),
+		"skills/docx/examples.txt": []byte("docx examples"),
+	}
+
+	filteredNames, filteredDirs, filteredFiles, err := filterBySelect(names, dirs, files, []string{"skills/doc"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(filteredNames) != 1 || filteredNames[0] != "doc" {
+		t.Errorf("filteredNames = %v, want [doc]", filteredNames)
+	}
+	if len(filteredDirs) != 1 || filteredDirs[0] != "skills/doc" {
+		t.Errorf("filteredDirs = %v, want [skills/doc]", filteredDirs)
+	}
+	if len(filteredFiles) != 2 {
+		t.Fatalf("filteredFiles length = %d, want 2", len(filteredFiles))
+	}
+	if _, ok := filteredFiles["skills/doc/SKILL.md"]; !ok {
+		t.Error("filtered files should include skills/doc/SKILL.md")
+	}
+	if _, ok := filteredFiles["skills/doc/prompt.md"]; !ok {
+		t.Error("filtered files should include skills/doc/prompt.md")
+	}
+	if _, ok := filteredFiles["skills/docx/SKILL.md"]; ok {
+		t.Error("filtered files should not include skills/docx/SKILL.md")
+	}
+	if _, ok := filteredFiles["skills/docx/prompt.md"]; ok {
+		t.Error("filtered files should not include skills/docx/prompt.md")
+	}
+}
+
 func setupMultiSkillDep(mock *fetch.MockFetcher, identity, version, commitSHA string) {
 	cloneURL := "https://" + identity + ".git"
 	tag := "v" + version

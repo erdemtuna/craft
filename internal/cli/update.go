@@ -206,7 +206,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		var newSkills []string
 		for _, p := range dep.AllSkillPaths {
 			if !installed[p] {
-				newSkills = append(newSkills, filepath.Base(p))
+				newSkills = append(newSkills, p)
 			}
 		}
 		if len(newSkills) > 0 {

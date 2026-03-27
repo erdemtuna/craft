@@ -38,7 +38,7 @@ const maxCommitSHALength = 64
 
 // DepURL represents a parsed dependency URL from craft.yaml.
 type DepURL struct {
-	// Raw is the original URL string (e.g., "github.com/example/skills@v1.0.0").
+	// Raw preserves the original (fragment-stripped) URL for diagnostic use and test verification.
 	Raw string
 
 	// Host is the registry host (e.g., "github.com").
