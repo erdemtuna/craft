@@ -163,6 +163,26 @@ func (r *Resolver) Resolve(m *manifest.Manifest, opts ResolveOptions) (*ResolveR
 					}
 				}
 			}
+
+			// Merge Select lists from all entries referencing this package.
+			// Empty select in any entry → all skills (nil).
+			if best, ok := selected[identity]; ok {
+				var mergedSelect []string
+				allSkills := false
+				for _, dep := range deps {
+					if len(dep.Select) == 0 {
+						allSkills = true
+						break
+					}
+					mergedSelect = append(mergedSelect, dep.Select...)
+				}
+				if allSkills {
+					best.Select = nil
+				} else {
+					best.Select = deduplicateStrings(mergedSelect)
+				}
+				selected[identity] = best
+			}
 		}
 
 		// Re-collect transitive deps for packages where MVS selected
@@ -293,6 +313,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 			Alias:   alias,
 			Source:  source,
 			RefType: parsed.RefType,
+			Select:  depSpec.Select,
 		}
 		allDeps = append(allDeps, dep)
 
@@ -365,9 +386,20 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 	dep.Commit = commitSHA
 
 	// Discover skills and compute integrity
-	skillNames, skillPaths, skillFiles, err := r.discoverSkillsForDep(cloneURL, commitSHA)
+	forceAutoDiscover := len(dep.Select) > 0
+	skillNames, skillPaths, skillFiles, err := r.discoverSkillsForDep(cloneURL, commitSHA, forceAutoDiscover)
 	if err != nil {
 		return dep, err
+	}
+
+	dep.AllSkillPaths = skillPaths
+
+	// Apply select filter if specified
+	if len(dep.Select) > 0 {
+		skillNames, skillPaths, skillFiles, err = filterBySelect(skillNames, skillPaths, skillFiles, dep.Select)
+		if err != nil {
+			return dep, fmt.Errorf("filtering skills for %s: %w", dep.URL, err)
+		}
 	}
 
 	dep.Skills = skillNames
@@ -378,18 +410,22 @@ func (r *Resolver) resolveOne(dep ResolvedDep, opts ResolveOptions) (ResolvedDep
 }
 
 // discoverSkillsForDep finds skills in a dependency, trying craft.yaml first,
-// then falling back to auto-discovery.
-func (r *Resolver) discoverSkillsForDep(cloneURL, commitSHA string) (names []string, dirs []string, files map[string][]byte, err error) {
-	// Try reading craft.yaml
-	craftFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
-	if readErr == nil {
-		if craftYAML, ok := craftFiles["craft.yaml"]; ok {
-			depManifest, parseErr := manifest.Parse(bytes.NewReader(craftYAML))
-			if parseErr != nil {
-				return nil, nil, nil, fmt.Errorf("parsing craft.yaml in %s: %w", cloneURL, parseErr)
-			}
-			if len(depManifest.Skills) > 0 {
-				return r.discoverFromManifestSkills(cloneURL, commitSHA, depManifest.Skills)
+// then falling back to auto-discovery. When forceAutoDiscover is true, the
+// manifest's skills export list is bypassed — this ensures consumer select
+// can reach skills not in the package's export list (FR-006).
+func (r *Resolver) discoverSkillsForDep(cloneURL, commitSHA string, forceAutoDiscover bool) (names []string, dirs []string, files map[string][]byte, err error) {
+	if !forceAutoDiscover {
+		// Try reading craft.yaml
+		craftFiles, readErr := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
+		if readErr == nil {
+			if craftYAML, ok := craftFiles["craft.yaml"]; ok {
+				depManifest, parseErr := manifest.Parse(bytes.NewReader(craftYAML))
+				if parseErr != nil {
+					return nil, nil, nil, fmt.Errorf("parsing craft.yaml in %s: %w", cloneURL, parseErr)
+				}
+				if len(depManifest.Skills) > 0 {
+					return r.discoverFromManifestSkills(cloneURL, commitSHA, depManifest.Skills)
+				}
 			}
 		}
 	}
@@ -570,4 +606,67 @@ func IsInfraFile(path string) bool {
 	}
 
 	return false
+}
+
+// filterBySelect filters discovered skills to only those matching the select
+// paths. Returns an error if any select path has no matching skill.
+func filterBySelect(names, dirs []string, files map[string][]byte, selectPaths []string) ([]string, []string, map[string][]byte, error) {
+	if len(selectPaths) == 0 {
+		return names, dirs, files, nil
+	}
+
+	// Normalize select paths for comparison
+	normalized := make([]string, len(selectPaths))
+	for i, s := range selectPaths {
+		s = strings.TrimPrefix(s, "./")
+		s = strings.TrimSuffix(s, "/")
+		normalized[i] = s
+	}
+
+	// Build lookup from dir → index for matching
+	dirIndex := make(map[string]int, len(dirs))
+	for i, d := range dirs {
+		dirIndex[d] = i
+	}
+
+	var filteredNames []string
+	var filteredDirs []string
+	filteredFiles := make(map[string][]byte)
+
+	for _, sel := range normalized {
+		idx, ok := dirIndex[sel]
+		if !ok {
+			return nil, nil, nil, fmt.Errorf("selected path %q does not match any skill in the package (available: %s)",
+				sel, strings.Join(dirs, ", "))
+		}
+		filteredNames = append(filteredNames, names[idx])
+		filteredDirs = append(filteredDirs, dirs[idx])
+
+		// Include files under this skill directory
+		prefix := sel + "/"
+		if sel == "" {
+			prefix = ""
+		}
+		for path, content := range files {
+			if prefix == "" || strings.HasPrefix(path, prefix) {
+				filteredFiles[path] = content
+			}
+		}
+	}
+
+	return filteredNames, filteredDirs, filteredFiles, nil
+}
+
+// deduplicateStrings returns a sorted, deduplicated copy of the input slice.
+func deduplicateStrings(ss []string) []string {
+	seen := make(map[string]bool, len(ss))
+	var result []string
+	for _, s := range ss {
+		if !seen[s] {
+			seen[s] = true
+			result = append(result, s)
+		}
+	}
+	sort.Strings(result)
+	return result
 }

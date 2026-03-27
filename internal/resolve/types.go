@@ -26,4 +26,11 @@ type ResolvedDep struct {
 
 	// RefType identifies the kind of reference (tag, commit, branch).
 	RefType RefType
+
+	// Select is the subpath filter from the manifest (empty = all skills).
+	Select []string
+
+	// AllSkillPaths records the full set of discovered skill paths before
+	// filtering, enabling new-skill detection without a second fetch pass.
+	AllSkillPaths []string
 }
