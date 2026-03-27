@@ -61,6 +61,7 @@ func TestGlobalFlag(t *testing.T) {
 	f := rootCmd.PersistentFlags().Lookup("global")
 	if f == nil {
 		t.Fatal("expected --global flag to be registered on rootCmd")
+		return
 	}
 	if f.Shorthand != "g" {
 		t.Errorf("expected shorthand 'g', got %q", f.Shorthand)
