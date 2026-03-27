@@ -46,8 +46,8 @@ Key constraints from research:
 - [x] **Phase 1: Core Type System** - Introduce `DependencySpec`, migrate all consumers from `map[string]string`
 - [x] **Phase 2: DepURL Subpath Parsing** - Add `#subpath` fragment support to the URL parser
 - [x] **Phase 3: Resolver Filtering** - Filter discovered skills by `select` list, merge selects across MVS
-- [ ] **Phase 4: CLI `craft get` Subpath** - Parse `#subpath` from CLI argument, create structured dep
-- [ ] **Phase 5: Interactive `craft add` Preview** - Skill discovery, multi-select UI, `--all` flag
+- [x] **Phase 4: CLI `craft get` Subpath** - Parse `#subpath` from CLI argument, create structured dep
+- [x] **Phase 5: Interactive `craft add` Preview** - Skill discovery, multi-select UI, `--all` flag
 - [ ] **Phase 6: `craft update` Discovery** - Detect and report newly available skills
 - [ ] **Phase 7: Documentation** - Docs.md, README updates, CHANGELOG entry
 
