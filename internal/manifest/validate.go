@@ -3,6 +3,7 @@ package manifest
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // namePattern matches valid package names: lowercase letter followed by
@@ -51,10 +52,19 @@ func validateCommon(m *Manifest) []error {
 		errs = append(errs, fmt.Errorf("name: %q does not match required format (lowercase alphanumeric with hyphens, e.g. 'my-package')", m.Name))
 	}
 
-	// validate dependency URL format for each entry
-	for alias, url := range m.Dependencies {
-		if !depURLPattern.MatchString(url) {
-			errs = append(errs, fmt.Errorf("dependencies[%q]: %q does not match required format (host/org/repo@<ref> where ref is vX.Y.Z, commit SHA, or branch:<name>)", alias, url))
+	// validate dependency URL format and select paths for each entry
+	for alias, dep := range m.Dependencies {
+		if !depURLPattern.MatchString(dep.URL) {
+			errs = append(errs, fmt.Errorf("dependencies[%q]: %q does not match required format (host/org/repo@<ref> where ref is vX.Y.Z, commit SHA, or branch:<name>)", alias, dep.URL))
+		}
+		for i, sel := range dep.Select {
+			if sel == "" {
+				errs = append(errs, fmt.Errorf("dependencies[%q].select[%d]: path must not be empty", alias, i))
+			} else if strings.HasPrefix(sel, "/") {
+				errs = append(errs, fmt.Errorf("dependencies[%q].select: %q must be a relative path (no leading '/')", alias, sel))
+			} else if strings.Contains(sel, "..") {
+				errs = append(errs, fmt.Errorf("dependencies[%q].select: %q must not contain '..' (path traversal)", alias, sel))
+			}
 		}
 	}
 

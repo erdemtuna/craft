@@ -84,18 +84,18 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	isUpdate := false
 	if existing, ok := m.Dependencies[alias]; ok {
 		isUpdate = true
-		if existing == depURL {
+		if existing.URL == depURL {
 			cmd.Printf("Dependency %q is already at %s — nothing to do.\n", alias, depURL)
 			return nil
 		}
-		cmd.Printf("Updating %q: %s → %s\n", alias, existing, depURL)
+		cmd.Printf("Updating %q: %s → %s\n", alias, existing.URL, depURL)
 	}
 
 	// Add dependency in memory
 	if m.Dependencies == nil {
-		m.Dependencies = make(map[string]string)
+		m.Dependencies = make(map[string]manifest.DependencySpec)
 	}
-	m.Dependencies[alias] = depURL
+	m.Dependencies[alias] = manifest.DependencySpec{URL: depURL}
 
 	// Validate by resolving with full manifest
 	fetcher, err := newFetcher()

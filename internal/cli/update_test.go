@@ -103,8 +103,8 @@ func TestWriteManifestAtomic(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "test-pkg",
 		Skills:        []string{"skills/lint"},
-		Dependencies: map[string]string{
-			"tools": "github.com/org/tools@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"tools": {URL: "github.com/org/tools@v1.0.0"},
 		},
 	}
 

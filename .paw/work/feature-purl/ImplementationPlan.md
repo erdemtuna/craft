@@ -43,7 +43,7 @@ Key constraints from research:
 
 ## Phase Status
 
-- [ ] **Phase 1: Core Type System** - Introduce `DependencySpec`, migrate all consumers from `map[string]string`
+- [x] **Phase 1: Core Type System** - Introduce `DependencySpec`, migrate all consumers from `map[string]string`
 - [ ] **Phase 2: DepURL Subpath Parsing** - Add `#subpath` fragment support to the URL parser
 - [ ] **Phase 3: Resolver Filtering** - Filter discovered skills by `select` list, merge selects across MVS
 - [ ] **Phase 4: CLI `craft get` Subpath** - Parse `#subpath` from CLI argument, create structured dep

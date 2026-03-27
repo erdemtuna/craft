@@ -66,7 +66,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check alias exists
-	depURL, ok := m.Dependencies[alias]
+	depSpec, ok := m.Dependencies[alias]
 	if !ok {
 		available := availableAliases(m.Dependencies)
 		return fmt.Errorf("dependency %q not found in craft.yaml\n  hint: available aliases: %s", alias, available)
@@ -75,6 +75,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	// Identify skills from the removed dependency (from pinfile)
 	pf, pfErr := pinfile.ParseFile(pfPath)
 
+	depURL := depSpec.URL
 	var removedSkills []string
 	if pfErr == nil {
 		// Find the pinfile entry for this dependency
@@ -204,7 +205,7 @@ func cleanEmptyParents(root, dir string) {
 }
 
 // availableAliases formats the available dependency aliases for error messages.
-func availableAliases(deps map[string]string) string {
+func availableAliases(deps map[string]manifest.DependencySpec) string {
 	if len(deps) == 0 {
 		return "(none)"
 	}

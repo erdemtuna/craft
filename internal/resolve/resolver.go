@@ -279,8 +279,8 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 
 	var allDeps []ResolvedDep
 
-	for alias, depURL := range m.Dependencies {
-		parsed, err := ParseDepURL(depURL)
+	for alias, depSpec := range m.Dependencies {
+		parsed, err := ParseDepURL(depSpec.URL)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dependency URL for %q: %w", alias, err)
 		}
@@ -289,7 +289,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		graph.AddEdge(parentID, identity)
 
 		dep := ResolvedDep{
-			URL:     depURL,
+			URL:     depSpec.URL,
 			Alias:   alias,
 			Source:  source,
 			RefType: parsed.RefType,
@@ -309,7 +309,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 
 		commitSHA, err := r.fetcher.ResolveRef(cloneURL, parsed.GitRef())
 		if err != nil {
-			return nil, fmt.Errorf("resolving %s: %w", depURL, err)
+			return nil, fmt.Errorf("resolving %s: %w", depSpec.URL, err)
 		}
 
 		files, err := r.fetcher.ReadFiles(cloneURL, commitSHA, []string{"craft.yaml"})
@@ -321,11 +321,11 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 		if craftYAML, ok := files["craft.yaml"]; ok {
 			depManifest, err := manifest.Parse(bytes.NewReader(craftYAML))
 			if err != nil {
-				return nil, fmt.Errorf("parsing craft.yaml from %s: %w", depURL, err)
+				return nil, fmt.Errorf("parsing craft.yaml from %s: %w", depSpec.URL, err)
 			}
 
 			if len(depManifest.Dependencies) > 0 {
-				transitive, err := r.collectDeps(depManifest, identity, depURL, graph, opts, visited, depth+1)
+				transitive, err := r.collectDeps(depManifest, identity, depSpec.URL, graph, opts, visited, depth+1)
 				if err != nil {
 					return nil, err
 				}

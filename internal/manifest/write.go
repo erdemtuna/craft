@@ -29,7 +29,7 @@ func Write(m *Manifest, w io.Writer) error {
 	addStringSlice(mapping, "skills", m.Skills)
 
 	if len(m.Dependencies) > 0 {
-		addStringMap(mapping, "dependencies", m.Dependencies)
+		addDependencies(mapping, "dependencies", m.Dependencies)
 	}
 	if len(m.Metadata) > 0 {
 		addStringMap(mapping, "metadata", m.Metadata)
@@ -97,6 +97,54 @@ func addStringMap(mapping *yaml.Node, key string, m map[string]string) {
 			Kind:  yaml.ScalarNode,
 			Value: m[k],
 		})
+	}
+
+	mapping.Content = append(mapping.Content, keyNode, mapNode)
+}
+
+// addDependencies adds a map[string]DependencySpec as a mapping node with sorted keys.
+// Simple dependencies (no Select) are written as scalar values; structured
+// dependencies (with Select) are written as mapping nodes with url and select fields.
+func addDependencies(mapping *yaml.Node, key string, deps map[string]DependencySpec) {
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
+	mapNode := &yaml.Node{Kind: yaml.MappingNode}
+
+	keys := make([]string, 0, len(deps))
+	for k := range deps {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, alias := range keys {
+		aliasNode := &yaml.Node{Kind: yaml.ScalarNode, Value: alias}
+		dep := deps[alias]
+
+		if len(dep.Select) == 0 {
+			// Write as simple scalar value.
+			mapNode.Content = append(mapNode.Content, aliasNode, &yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: dep.URL,
+			})
+		} else {
+			// Write as structured object with url and select fields.
+			objNode := &yaml.Node{Kind: yaml.MappingNode}
+
+			objNode.Content = append(objNode.Content,
+				&yaml.Node{Kind: yaml.ScalarNode, Value: "url"},
+				&yaml.Node{Kind: yaml.ScalarNode, Value: dep.URL},
+			)
+
+			selKey := &yaml.Node{Kind: yaml.ScalarNode, Value: "select"}
+			selSeq := &yaml.Node{Kind: yaml.SequenceNode}
+			for _, s := range dep.Select {
+				selSeq.Content = append(selSeq.Content,
+					&yaml.Node{Kind: yaml.ScalarNode, Value: s},
+				)
+			}
+			objNode.Content = append(objNode.Content, selKey, selSeq)
+
+			mapNode.Content = append(mapNode.Content, aliasNode, objNode)
+		}
 	}
 
 	mapping.Content = append(mapping.Content, keyNode, mapNode)

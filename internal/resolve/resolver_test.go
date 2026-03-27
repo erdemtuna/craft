@@ -47,7 +47,7 @@ func TestResolveSingleDep(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"skills": "github.com/org/skills@v1.0.0"},
+		Dependencies: map[string]manifest.DependencySpec{"skills": {URL: "github.com/org/skills@v1.0.0"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{})
@@ -95,9 +95,9 @@ func TestResolveMVSDiamond(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "root",
-		Dependencies: map[string]string{
-			"b": "github.com/org/b@v1.0.0",
-			"d": "github.com/org/d@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"b": {URL: "github.com/org/b@v1.0.0"},
+			"d": {URL: "github.com/org/d@v1.0.0"},
 		},
 	}
 
@@ -143,7 +143,7 @@ func TestResolveCycleDetection(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "root",
-		Dependencies: map[string]string{"a": "github.com/org/a@v1.0.0"},
+		Dependencies: map[string]manifest.DependencySpec{"a": {URL: "github.com/org/a@v1.0.0"}},
 	}
 
 	_, err := resolver.Resolve(m, ResolveOptions{})
@@ -165,9 +165,9 @@ func TestResolveSameNameSkillsAllowed(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "root",
-		Dependencies: map[string]string{
-			"a": "github.com/org/a@v1.0.0",
-			"b": "github.com/org/b@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"a": {URL: "github.com/org/a@v1.0.0"},
+			"b": {URL: "github.com/org/b@v1.0.0"},
 		},
 	}
 
@@ -199,7 +199,7 @@ func TestResolvePinfileReuse(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"skills": "github.com/org/skills@v1.0.0"},
+		Dependencies: map[string]manifest.DependencySpec{"skills": {URL: "github.com/org/skills@v1.0.0"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{ExistingPinfile: existing})
@@ -235,7 +235,7 @@ func TestResolveForceResolve(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"skills": "github.com/org/skills@v1.0.0"},
+		Dependencies: map[string]manifest.DependencySpec{"skills": {URL: "github.com/org/skills@v1.0.0"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{
@@ -299,7 +299,7 @@ func TestResolveDepthLimit(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "root",
-		Dependencies: map[string]string{"dep0": "github.com/org/dep0@v1.0.0"},
+		Dependencies: map[string]manifest.DependencySpec{"dep0": {URL: "github.com/org/dep0@v1.0.0"}},
 	}
 
 	_, err := resolver.Resolve(m, ResolveOptions{})
@@ -350,9 +350,9 @@ func TestResolveMVSTransitiveDepsReCollection(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "root",
-		Dependencies: map[string]string{
-			"a": "github.com/org/a@v1.0.0",
-			"b": "github.com/org/b@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"a": {URL: "github.com/org/a@v1.0.0"},
+			"b": {URL: "github.com/org/b@v1.0.0"},
 		},
 	}
 
@@ -418,7 +418,7 @@ func TestResolveBranchDep(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"tools": "github.com/acme/tools@branch:main"},
+		Dependencies: map[string]manifest.DependencySpec{"tools": {URL: "github.com/acme/tools@branch:main"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{})
@@ -456,7 +456,7 @@ func TestResolveCommitDep(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"tools": "github.com/acme/tools@abc1234def567890abc1234def567890abc1234d"},
+		Dependencies: map[string]manifest.DependencySpec{"tools": {URL: "github.com/acme/tools@abc1234def567890abc1234def567890abc1234d"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{})
@@ -499,9 +499,9 @@ func TestResolveMixedRefTypeConflict(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "test",
-		Dependencies: map[string]string{
-			"tools": "github.com/acme/tools@v1.0.0",
-			"b":     "github.com/org/b@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"tools": {URL: "github.com/acme/tools@v1.0.0"},
+			"b":     {URL: "github.com/org/b@v1.0.0"},
 		},
 	}
 
@@ -528,9 +528,9 @@ func TestResolveSameBranchMerge(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "test",
-		Dependencies: map[string]string{
-			"tools": "github.com/acme/tools@branch:main",
-			"b":     "github.com/org/b@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"tools": {URL: "github.com/acme/tools@branch:main"},
+			"b":     {URL: "github.com/org/b@v1.0.0"},
 		},
 	}
 
@@ -562,9 +562,9 @@ func TestResolveDifferentBranchConflict(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "test",
-		Dependencies: map[string]string{
-			"tools": "github.com/acme/tools@branch:main",
-			"b":     "github.com/org/b@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"tools": {URL: "github.com/acme/tools@branch:main"},
+			"b":     {URL: "github.com/org/b@v1.0.0"},
 		},
 	}
 
@@ -596,7 +596,7 @@ func TestResolveBranchDepBypassesPinfileCache(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name:         "test",
-		Dependencies: map[string]string{"tools": "github.com/acme/tools@branch:main"},
+		Dependencies: map[string]manifest.DependencySpec{"tools": {URL: "github.com/acme/tools@branch:main"}},
 	}
 
 	result, err := resolver.Resolve(m, ResolveOptions{ExistingPinfile: existingPinfile})
@@ -638,9 +638,9 @@ func TestResolveConflictingCommitSHAs(t *testing.T) {
 	resolver := NewResolver(mock)
 	m := &manifest.Manifest{
 		Name: "test",
-		Dependencies: map[string]string{
-			"b": "github.com/org/b@v1.0.0",
-			"c": "github.com/org/c@v1.0.0",
+		Dependencies: map[string]manifest.DependencySpec{
+			"b": {URL: "github.com/org/b@v1.0.0"},
+			"c": {URL: "github.com/org/c@v1.0.0"},
 		},
 	}
 

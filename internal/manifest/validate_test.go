@@ -22,8 +22,8 @@ func TestValidateWithDependencies(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "my-package",
 		Skills:        []string{"./skills/one"},
-		Dependencies: map[string]string{
-			"git-ops": "github.com/example/git@v1.0.0",
+		Dependencies: map[string]DependencySpec{
+			"git-ops": {URL: "github.com/example/git@v1.0.0"},
 		},
 	}
 	errs := Validate(m)
@@ -130,7 +130,7 @@ func TestValidateDependencyURLFormats(t *testing.T) {
 				SchemaVersion: 1,
 				Name:          "test",
 				Skills:        []string{"./skill"},
-				Dependencies:  map[string]string{"dep": tc.url},
+				Dependencies:  map[string]DependencySpec{"dep": {URL: tc.url}},
 			}
 			errs := Validate(m)
 			hasDepErr := false
@@ -204,7 +204,7 @@ func TestValidateGlobal_InvalidDepURL(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "test",
 		Skills:        []string{},
-		Dependencies:  map[string]string{"bad": "not-a-valid-url"},
+		Dependencies:  map[string]DependencySpec{"bad": {URL: "not-a-valid-url"}},
 	}
 	errs := ValidateGlobal(m)
 	if len(errs) != 1 {
@@ -218,7 +218,7 @@ func TestValidateGlobal_MultipleErrors(t *testing.T) {
 		SchemaVersion: 2,
 		Name:          "",
 		Skills:        []string{},
-		Dependencies:  map[string]string{"bad": "not-a-valid-url"},
+		Dependencies:  map[string]DependencySpec{"bad": {URL: "not-a-valid-url"}},
 	}
 	errs := ValidateGlobal(m)
 	if len(errs) < 2 {
@@ -231,7 +231,7 @@ func TestValidateGlobal_ValidWithDeps(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "global",
 		Skills:        []string{},
-		Dependencies:  map[string]string{"dep": "github.com/org/repo@v1.0.0"},
+		Dependencies:  map[string]DependencySpec{"dep": {URL: "github.com/org/repo@v1.0.0"}},
 	}
 	errs := ValidateGlobal(m)
 	if len(errs) != 0 {
@@ -244,4 +244,87 @@ func assertContains(t *testing.T, s, substr string) {
 	if !strings.Contains(s, substr) {
 		t.Errorf("Expected %q to contain %q", s, substr)
 	}
+}
+
+func TestValidateSelectPaths(t *testing.T) {
+	tests := []struct {
+		name      string
+		selectVal []string
+		wantErr   string
+	}{
+		{
+			name:      "valid select paths",
+			selectVal: []string{"skills/docx", "skills/pdf"},
+		},
+		{
+			name:      "absolute path rejected",
+			selectVal: []string{"/skills/docx"},
+			wantErr:   "must be a relative path",
+		},
+		{
+			name:      "path traversal rejected",
+			selectVal: []string{"skills/../secret"},
+			wantErr:   "must not contain '..'",
+		},
+		{
+			name:      "empty string rejected",
+			selectVal: []string{""},
+			wantErr:   "must not be empty",
+		},
+		{
+			name:      "nested path valid",
+			selectVal: []string{"skills/nested/deep/docx"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &Manifest{
+				SchemaVersion: 1,
+				Name:          "test-pkg",
+				Skills:        []string{"./skills/one"},
+				Dependencies: map[string]DependencySpec{
+					"acme": {
+						URL:    "github.com/acme/skills@v1.0.0",
+						Select: tt.selectVal,
+					},
+				},
+			}
+			errs := Validate(m)
+			if tt.wantErr == "" {
+				if len(errs) != 0 {
+					t.Errorf("Expected no errors, got %v", errs)
+				}
+			} else {
+				found := false
+				for _, err := range errs {
+					if strings.Contains(err.Error(), tt.wantErr) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected error containing %q, got %v", tt.wantErr, errs)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateStructuredDepMissingURL(t *testing.T) {
+	yamlInput := `
+schema_version: 1
+name: test-pkg
+skills:
+  - ./skills/one
+dependencies:
+  acme:
+    select:
+      - skills/docx
+`
+	m, err := Parse(strings.NewReader(yamlInput))
+	if err == nil {
+		t.Fatalf("Expected parse error for structured dep without url, got manifest: %+v", m)
+	}
+	assertContains(t, err.Error(), "url")
 }
