@@ -168,6 +168,85 @@ func TestParseDepURL(t *testing.T) {
 				RefType: RefTypeBranch,
 			},
 		},
+		// Subpath tests
+		{
+			name:  "tag with subpath",
+			input: "github.com/acme/skills@v1.0.0#skills/docx",
+			want: &DepURL{
+				Raw:     "github.com/acme/skills@v1.0.0",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "skills",
+				Version: "1.0.0",
+				RefType: RefTypeTag,
+				Subpath: "skills/docx",
+			},
+		},
+		{
+			name:  "commit with subpath",
+			input: "github.com/acme/tools@abc1234#tools/helper",
+			want: &DepURL{
+				Raw:     "github.com/acme/tools@abc1234",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "tools",
+				Ref:     "abc1234",
+				RefType: RefTypeCommit,
+				Subpath: "tools/helper",
+			},
+		},
+		{
+			name:  "branch with subpath",
+			input: "github.com/acme/tools@branch:main#tools/x",
+			want: &DepURL{
+				Raw:     "github.com/acme/tools@branch:main",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "tools",
+				Ref:     "main",
+				RefType: RefTypeBranch,
+				Subpath: "tools/x",
+			},
+		},
+		{
+			name:  "nested subpath",
+			input: "github.com/acme/skills@v2.0.0#skills/nested/deep/docx",
+			want: &DepURL{
+				Raw:     "github.com/acme/skills@v2.0.0",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "skills",
+				Version: "2.0.0",
+				RefType: RefTypeTag,
+				Subpath: "skills/nested/deep/docx",
+			},
+		},
+		{
+			name:  "subpath with leading dot-slash normalized",
+			input: "github.com/acme/skills@v1.0.0#./skills/docx",
+			want: &DepURL{
+				Raw:     "github.com/acme/skills@v1.0.0",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "skills",
+				Version: "1.0.0",
+				RefType: RefTypeTag,
+				Subpath: "skills/docx",
+			},
+		},
+		{
+			name:  "empty fragment means no subpath",
+			input: "github.com/acme/skills@v1.0.0#",
+			want: &DepURL{
+				Raw:     "github.com/acme/skills@v1.0.0",
+				Host:    "github.com",
+				Org:     "acme",
+				Repo:    "skills",
+				Version: "1.0.0",
+				RefType: RefTypeTag,
+				Subpath: "",
+			},
+		},
 		// Error cases
 		{
 			name:    "missing ref (no @)",
@@ -243,7 +322,7 @@ func TestParseDepURL(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ParseDepURL(%q) error: %v", tt.input, err)
 			}
-			if got.Raw != tt.want.Raw || got.Host != tt.want.Host || got.Org != tt.want.Org || got.Repo != tt.want.Repo || got.Version != tt.want.Version || got.Ref != tt.want.Ref || got.RefType != tt.want.RefType {
+			if got.Raw != tt.want.Raw || got.Host != tt.want.Host || got.Org != tt.want.Org || got.Repo != tt.want.Repo || got.Version != tt.want.Version || got.Ref != tt.want.Ref || got.RefType != tt.want.RefType || got.Subpath != tt.want.Subpath {
 				t.Errorf("ParseDepURL(%q) = %+v, want %+v", tt.input, got, tt.want)
 			}
 		})
@@ -339,5 +418,32 @@ func TestDepURLMethodsBranch(t *testing.T) {
 	// String reconstructs the full URL
 	if got := d.String(); got != "github.com/acme/tools@branch:main" {
 		t.Errorf("String() = %q, want %q", got, "github.com/acme/tools@branch:main")
+	}
+}
+
+func TestDepURLSubpathMethods(t *testing.T) {
+	d, err := ParseDepURL("github.com/acme/skills@v1.0.0#skills/docx")
+	if err != nil {
+		t.Fatalf("ParseDepURL error: %v", err)
+	}
+
+	// PackageIdentity excludes subpath
+	if got := d.PackageIdentity(); got != "github.com/acme/skills" {
+		t.Errorf("PackageIdentity() = %q, want %q", got, "github.com/acme/skills")
+	}
+
+	// String includes subpath
+	if got := d.String(); got != "github.com/acme/skills@v1.0.0#skills/docx" {
+		t.Errorf("String() = %q, want %q", got, "github.com/acme/skills@v1.0.0#skills/docx")
+	}
+
+	// WithVersion drops subpath
+	if got := d.WithVersion("2.0.0"); got != "github.com/acme/skills@v2.0.0" {
+		t.Errorf("WithVersion() = %q, want %q", got, "github.com/acme/skills@v2.0.0")
+	}
+
+	// GitRef is unaffected by subpath
+	if got := d.GitRef(); got != "v1.0.0" {
+		t.Errorf("GitRef() = %q, want %q", got, "v1.0.0")
 	}
 }
