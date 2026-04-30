@@ -322,7 +322,7 @@ func (r *Resolver) collectDeps(m *manifest.Manifest, parentID, source string, gr
 			continue
 		}
 		visited[identity] = parsed.GitRef()
-		if len(visited) > maxTotalDeps {
+		if len(visited) >= maxTotalDeps {
 			return nil, fmt.Errorf("dependency resolution exceeded maximum of %d total dependencies", maxTotalDeps)
 		}
 
